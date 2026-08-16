@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" role="img" aria-label="A work order moves from hub to station to artifact to independent review to hub re-check to a human decision; every step lands on disk; a blocker sends it back to the station">
+  <defs>
+    <marker id="alight" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c3ccd5"/>
+    </marker>
+    <marker id="slight" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45f06"/>
+    </marker>
+  </defs>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#5b6773" letter-spacing="0.03em">
+    <text x="20" y="20">disk — mailbox + ledger · every step lands here, so losing the chat costs nothing</text>
+    <text x="149" y="76" text-anchor="middle">order</text>
+    <text x="307" y="76" text-anchor="middle">lands</text>
+    <text x="465" y="76" text-anchor="middle">reads</text>
+    <text x="623" y="76" text-anchor="middle">verdict</text>
+    <text x="781" y="76" text-anchor="middle">report</text>
+  </g>
+
+  <g stroke="#c3ccd5" stroke-width="1.5" fill="none">
+    <line x1="20" y1="30" x2="880" y2="30"/>
+    <line x1="70"  y1="30" x2="70"  y2="86"/>
+    <line x1="228" y1="30" x2="228" y2="86"/>
+    <line x1="386" y1="30" x2="386" y2="86"/>
+    <line x1="544" y1="30" x2="544" y2="86"/>
+    <line x1="702" y1="30" x2="702" y2="86"/>
+    <line x1="70" y1="120" x2="806" y2="120" marker-end="url(#alight)"/>
+  </g>
+
+  <g fill="#f6f8fa" stroke="#c3ccd5" stroke-width="1.5">
+    <rect x="20"  y="86" width="100" height="68" rx="3"/>
+    <rect x="178" y="86" width="100" height="68" rx="3"/>
+    <rect x="336" y="86" width="100" height="68" rx="3"/>
+    <rect x="494" y="86" width="100" height="68" rx="3"/>
+    <rect x="652" y="86" width="100" height="68" rx="3"/>
+  </g>
+  <rect x="810" y="86" width="70" height="68" rx="3" fill="none" stroke="#b45f06" stroke-width="1.5"/>
+
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <g font-size="13.5" font-weight="700" fill="#1a2129">
+      <text x="70"  y="112">Hub</text>
+      <text x="228" y="112">Station</text>
+      <text x="386" y="112">Artifact</text>
+      <text x="544" y="112">Review</text>
+      <text x="702" y="112">Hub re-check</text>
+    </g>
+    <text x="845" y="115" font-size="13.5" font-weight="700" fill="#b45f06">Human</text>
+    <g font-size="11.5" fill="#5b6773">
+      <text x="70"  y="132">writes the order</text>
+      <text x="70"  y="148">keeps the ledger</text>
+      <text x="228" y="132">own process</text>
+      <text x="228" y="148">no memory</text>
+      <text x="386" y="132">diff · files</text>
+      <text x="386" y="148">check output</text>
+      <text x="544" y="132">read-only</text>
+      <text x="544" y="148">no author channel</text>
+      <text x="702" y="132">runs the checks</text>
+      <text x="702" y="148">itself</text>
+      <text x="845" y="136">decides</text>
+    </g>
+  </g>
+
+  <path d="M544 162 C 544 232, 228 232, 228 168" fill="none" stroke="#b45f06" stroke-width="2" stroke-dasharray="5 6" marker-end="url(#slight)"/>
+  <text x="386" y="250" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#b45f06">blocker — back for rework, and the whole path runs again</text>
+
+  <text x="450" y="284" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#5b6773">a report is a lead · an artifact is evidence · the press at the end is a person's</text>
+</svg>
