@@ -11,13 +11,29 @@ INBOX="${2:-mailbox/to-hub}"
 
 [ -f "$LEDGER" ] || { echo "no ledger"; exit 0; }
 
+# Check the ledger against the machine, not only against itself. A station marked running
+# whose process is gone is not a station running — it is a ledger nobody closed out. That is
+# the same failure this whole model exists to catch, so the ledger does not get a pass either.
+# kill -0 sends no signal; it only asks "could I signal this pid" — i.e. is it still alive.
 busy=$(python3 - "$LEDGER" <<'PY'
-import json, sys
+import json, os, sys
 d = json.load(open(sys.argv[1]))
 out = []
 for name, a in d.get("agents", {}).items():
-    if a.get("state") == "running":
-        out.append(f"{name}:{a.get('task','')[:18]}")
+    if a.get("state") != "running":
+        continue
+    task, pid = a.get("task", "")[:18], a.get("pid")
+    alive = None
+    if isinstance(pid, int):
+        try:
+            os.kill(pid, 0)
+            alive = True
+        except ProcessLookupError:
+            alive = False
+        except PermissionError:
+            alive = True          # exists, owned by another user
+    out.append(f"!! {name}:ORPHANED(ledger says running, pid {pid} is gone)"
+               if alive is False else f"{name}:{task}")
 print(" | ".join(out) if out else "all idle")
 PY
 )

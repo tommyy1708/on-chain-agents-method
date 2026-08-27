@@ -73,15 +73,36 @@ Use `templates/work-order.md`. A usable order answers four things:
 Each start is a **fresh, one-shot process**, running in that station's own directory, carrying one order.
 
 - **No memory.** It works from the order plus what is on disk.
-- **Narrow permissions.** Grant the tools this order needs. A read-only job gets no write access.
+- **Narrow permissions — but confirm the flag is a boundary.** Grant the tools this order
+  needs; a read-only job gets no write access. CLIs commonly have two flags that look alike:
+  one **pre-approves** tools (so the agent is never stopped to ask), one decides **which tools
+  exist**. Only the second restricts anything. Test yours once — hand a shift a single tool,
+  ask it to use another — rather than assuming. Permissions are the second line of defence
+  here. The first is that a shift is one order deep and a human presses merge.
 - **One call, one shift.** Do not chain two in a single command — when one is killed, both die with nothing to show.
 - **Run it in the background** so the driver's seat stays free. Different stations run in parallel; the same station queues.
 
-### Three things the launch prompt must state
+### Four things the launch prompt must state
 
 1. The path to the order, and that it is to be followed strictly.
 2. A summary of this shift's hard guardrails (no deploy, no production, no real external calls, open a PR but do not merge, …).
 3. Where the reply goes, and in what shape.
+4. **How to sign off.** The last thing a shift does, after the reply is on disk, is emit one
+   line in a fixed shape:
+
+   ```
+   SHIFT-END <station> <order-slug> <done|failed|stuck> · <one sentence> · reply <path>
+   ```
+
+   **A shift that stops early emits it too** — `stuck`, plus where it stopped. Silence is the
+   worst outcome: an agent that dies quietly looks exactly like an agent still working, and
+   the hub finds out an hour later. One line costs nothing and removes that hour.
+
+   Where the line goes depends on your CLI. If it can message another session, send it to the
+   hub and the hub hears it immediately. If it cannot, printing it is enough — it becomes the
+   last line of the shift log, so `tail -1 <log>` answers "how did that end?" without reading
+   the log at all. **The reply file is still the record.** This line is a doorbell, not a
+   deliverable: it is allowed to be lost, the reply is not.
 
 ---
 
@@ -95,7 +116,20 @@ One JSON file, **written only by the hub**, holding three things:
 
 **Dispatching and recording must be the same action.** Miss once and the status display is lying.
 
-> Shape: `ledger.example.json`. `scripts/statusline.sh` reads it and prints who is busy.
+**And give the ledger something that can contradict it.** The rule above is discipline, and
+discipline is exactly what fails at 2am. So record the shift's **process id** at dispatch, and
+have the status display check it: a station marked `running` whose process is gone is not a
+station running — it is a ledger that was never closed out. One `kill -0` per running station,
+no dependency on any particular CLI, and the display stops being able to lie in the one
+direction that matters. (If your CLI can also enumerate its own sessions, that is a stronger
+check still — it catches the reverse case, a shift running that nobody wrote down.)
+
+This is the same principle the rest of the model runs on: **never let the only account of the
+work be the account written by whoever did it.** The ledger is the hub's own report on itself,
+so it gets a witness too.
+
+> Shape: `ledger.example.json`. `scripts/statusline.sh` reads it, checks each running pid, and
+> prints who is busy — flagging any station whose process has vanished.
 
 ---
 
