@@ -15,10 +15,21 @@
 最后一条是唯一的硬要求。一个具体例子,也是这些脚本对着写的那个:
 
 ```bash
-claude -p "<prompt>" --allowedTools "Read,Grep,Write,Bash(git:*)"
+claude -p "<prompt>" --tools "Read,Grep,Write,Bash"
 ```
 
 任何长这个形状的 CLI 都能用。**如果你的工具不能限制权限,其余内容照样成立,只有第 4 条规矩用不上。**
+
+> **先弄清哪个开关是真的在限制 —— 它们长得像,不是一回事。**
+> 很多 CLI 有两个开关:一个是**预先批准**,让 agent 跑到那一步不必停下来问你;
+> 另一个决定**哪些工具根本存在**。**只有后者是边界。**
+> 实测(Claude Code 2.1.247):用 `--allowedTools "Read"` 起一个班次,再让它执行一条
+> shell 命令 —— **它照样执行了**;`--allowedTools` 是预批准清单。换成 `--tools "Read"`,
+> 工具直接不存在,班次回报「拿不到这个工具」然后正常收工。
+> **你自己也这样测一次:**给一个班次只留一个工具,让它去用另一个,看会怎样。三十秒,
+> 你就知道自以为有的那道边界是不是真的。**无论答案是什么,本文其余部分照样成立** ——
+> 权限在这套模型里是第二道防线,不是第一道。第一道是「一个班次只装一张工单」,
+> 以及「按下合并的永远是人」。
 
 ---
 
@@ -122,10 +133,26 @@ cp templates/work-order.zh.md mailbox/to-backend/2026-01-05-add-retry.md
 $EDITOR mailbox/to-backend/2026-01-05-add-retry.md      # 四节都要填
 
 ./scripts/dispatch.sh backend mailbox/to-backend/2026-01-05-add-retry.md \
-    --tools "Read,Grep,Write,Edit,Bash(git:*),Bash(npm test:*)"
+    --tools "Read,Grep,Write,Edit,Bash" \
+    --allow "Bash(git:*),Bash(npm test:*)"
 
 ./scripts/statusline.sh          # backend:… · inbox 0 · awaiting decision 0
 ```
+
+`--tools` 是边界:这个班次**只存在**这些工具。`--allow` 是在边界之内**预先批准**具体命令,
+免得它跑到 `git status` 那一步停下来问你。只限制不预批,安全但慢;**只预批不限制,等于没有边界。**
+
+班次跑着的时候,`statusline.sh` 还会回答一个账本回答不了的问题:它拿账本里记下的进程号去核,
+**班次要是悄悄死了,会显示成 `ORPHANED`**,而不是继续冒充"正在干活"。
+
+班次结束时,日志最后一行就是它的收工签名:
+
+```bash
+tail -1 .shifts/*-backend-add-retry.log
+# SHIFT-END backend add-retry done · 重试加好了,全量绿,PR 已开未合 · reply mailbox/to-hub/...
+```
+
+**这行是门铃,不是交付物** —— 要看的仍然是回信和实物,不是这一行。
 
 回信落进 `mailbox/to-hub/` 之后:
 

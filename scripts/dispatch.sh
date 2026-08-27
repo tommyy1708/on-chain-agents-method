@@ -2,13 +2,21 @@
 #
 # dispatch.sh — start one shift, and record it in the ledger. One action, not two.
 #
-#   ./scripts/dispatch.sh <station> <order-file> [--tools "<allowlist>"] [--fg]
+#   ./scripts/dispatch.sh <station> <order-file> [--tools "<list>"] [--allow "<list>"] [--fg]
 #
 # What it does
 #   1. checks the station and the order exist, and that the station is idle
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
-#   4. writes the ledger: this station is now running, on this order, since now
+#   4. writes the ledger: this station is now running, on this order, since now,
+#      AND the process id, so the status display can check the ledger against reality
+#
+# Two different permission flags, and they are not interchangeable
+#   --tools "…"  the set of tools that EXIST for this shift. This is the boundary.
+#   --allow "…"  tools that are pre-approved, so the shift is not stopped to ask.
+#                Pre-approval is not restriction: measured on Claude Code 2.1.247, a shift
+#                launched with --allowedTools "Read" still ran shell commands. Only --tools
+#                removed the tool. Test your own CLI once; do not assume.
 #
 # Why the prompt goes through a file: a prompt written inline is interpreted by the
 # shell first. Backticks in it become command substitution — the text you wrote gets
@@ -28,13 +36,14 @@ LOGS="${LOGS:-.shifts}"
 
 die() { printf 'dispatch: %s\n' "$1" >&2; exit 1; }
 
-[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--fg]"
+[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--allow \"…\"] [--fg]"
 STATION="$1"; ORDER="$2"; shift 2
 
-TOOLS=""; BACKGROUND=1
+TOOLS=""; ALLOW=""; BACKGROUND=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --tools) TOOLS="${2:-}"; shift 2 ;;
+    --allow) ALLOW="${2:-}"; shift 2 ;;
     --fg)    BACKGROUND=0; shift ;;
     *)       die "unknown argument: $1" ;;
   esac
@@ -79,16 +88,23 @@ reply=$(sed -n 's/^reply:[[:space:]]*//p' "$ORDER" | head -1)
   echo "- End your reply with a section called 'found but not done'."
   echo
   [ -n "$reply" ] && echo "Write your reply to $MAILBOX/$reply with status: NEW."
+  echo
+  echo "Sign off, always, as the very last thing you do — after the reply is on disk:"
+  echo "  print one line, exactly this shape, and nothing after it:"
+  echo "  SHIFT-END $STATION $slug <done|failed|stuck> · <one sentence> · reply ${reply:-<none>}"
+  echo "Emit it even if you are stopping early — use 'stuck' and say where you stopped."
+  echo "Dying quietly is the worst outcome: it looks identical to still working."
+  echo "If your tooling can message the dispatching session directly, send that same line"
+  echo "there as well. The reply file remains the record; this line is only a doorbell."
 } > "$prompt_file"
 
 # --- launch one shift ---------------------------------------------------------
 launch() {
   ( cd "$STATIONS_DIR/$STATION" && \
-    if [ -n "$TOOLS" ]; then
-      $AGENT_CMD "$(cat "$OLDPWD/$prompt_file")" --allowedTools "$TOOLS"
-    else
-      $AGENT_CMD "$(cat "$OLDPWD/$prompt_file")"
-    fi ) >"$log_file" 2>&1
+    set -- "$(cat "$OLDPWD/$prompt_file")"
+    [ -n "$TOOLS" ] && set -- "$@" --tools "$TOOLS"
+    [ -n "$ALLOW" ] && set -- "$@" --allowedTools "$ALLOW"
+    $AGENT_CMD "$@" ) >"$log_file" 2>&1
 }
 
 if [ "$BACKGROUND" -eq 1 ]; then
@@ -100,15 +116,18 @@ else
 fi
 
 # --- record, in the same action ----------------------------------------------
-python3 - "$LEDGER" "$STATION" "$ORDER" "$log_file" <<'PY'
+python3 - "$LEDGER" "$STATION" "$ORDER" "$log_file" "$pid" <<'PY'
 import json, sys, datetime
-ledger, station, order, log = sys.argv[1:5]
+ledger, station, order, log, pid = sys.argv[1:6]
 d = json.load(open(ledger))
 d.setdefault("agents", {})[station] = {
     "state": "running",
     "task":  order,
     "since": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     "log":   log,
+    # The witness. Discipline says the hub will always close this out; the pid is what
+    # catches the night it doesn't. statusline.sh checks it with kill -0.
+    "pid":   int(pid),
 }
 d.setdefault("backlog", []).insert(0,
     f"[dispatched · {datetime.datetime.now():%Y-%m-%d %H:%M}] {station} ← {order}. Log: {log}.")

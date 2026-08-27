@@ -47,7 +47,8 @@ be falsified is a brochure.
 | **Nobody notices for weeks** | The context that wrote the code is the context reviewing it | The reviewer has no write access and no channel to the author | Ask the reviewer to show a knife that went red. No knife, no review |
 | **The reasoning is gone** | Compaction and restarts keep conclusions, not reasons | The ledger records the reasoning as it stood at the time | Pick a decision from a month ago; try to reconstruct why |
 | **A crash costs the whole run** | One process holds both the work and its state | One-shot shifts; artifacts land on disk continuously | Kill a shift mid-task. Reconcile against disk. How much was actually lost? |
-| **One mistake reaches everything** | All tools are available, always | Permissions are granted per order | Read the launch command. Does it list the tools this order needs, or every tool? |
+| **One mistake reaches everything** | All tools are available, always | Permissions are granted per order | Give a shift one tool, ask it to use another. If it obliges, that flag pre-approves tools, it does not restrict them |
+| **The status board says "running" and nothing is** | The board is written by hand, and nothing contradicts it | The dispatch records the shift's pid; the status line checks it | Kill a shift and look at the status line. Still "running"? Then it is reporting a memory, not a fact |
 | **The human is either blind or exhausted** | Approve every call, or approve nothing | The human appears only at the irreversible step | Count the interruptions in a day, and what each one was about |
 
 
@@ -164,7 +165,9 @@ scripts/statusline.sh  Reads the ledger, prints who is busy on one line
 
 **Requirements:** bash, python3, git, and an agent CLI that runs one-shot and
 non-interactive with a way to restrict its tools — for example
-`claude -p "<prompt>" --allowedTools "…"`.
+`claude -p "<prompt>" --tools "…"`. Check which of your CLI's flags actually restricts:
+a pre-approval list and a real restriction look alike and are not the same thing
+([SETUP.md](SETUP.md)).
 
 **Do not start with the reviewer.** The first two rules — artifact acceptance and state on
 disk — solve most of it, and cost nothing. Independent review is step two.

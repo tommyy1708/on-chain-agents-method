@@ -15,10 +15,23 @@ How to run this on your own codebase. About thirty minutes to the first order.
 That last one is the only real requirement. A concrete example, and the one these scripts were written against:
 
 ```bash
-claude -p "<prompt>" --allowedTools "Read,Grep,Write,Bash(git:*)"
+claude -p "<prompt>" --tools "Read,Grep,Write,Bash"
 ```
 
 Any CLI with that shape works. If yours cannot restrict tools, everything here still applies except rule 4.
+
+> **Check which flag actually restricts — they are not the same thing.**
+> Many CLIs have two: one that **pre-approves** tools so the agent is not stopped to ask,
+> and one that decides **which tools exist at all**. Only the second is a boundary.
+> Measured on Claude Code 2.1.247: launching a shift with `--allowedTools "Read"` and then
+> asking it to run a shell command — it ran the command. `--allowedTools` is the
+> pre-approval list. `--tools "Read"` removed the tool outright: the shift reported the
+> tool was unavailable and finished cleanly.
+> **Verify yours the same way, once:** give a shift exactly one tool, ask it to use a
+> different one, and see what happens. Thirty seconds, and you learn whether the boundary
+> you think you have is real. Whatever the answer, the rest of this document still works —
+> permissions are a second line of defence here, not the first. The first is that a shift
+> can only be one order deep, and that a human presses merge.
 
 ---
 
@@ -122,10 +135,29 @@ cp templates/work-order.md mailbox/to-backend/2026-01-05-add-retry.md
 $EDITOR mailbox/to-backend/2026-01-05-add-retry.md      # fill in all four sections
 
 ./scripts/dispatch.sh backend mailbox/to-backend/2026-01-05-add-retry.md \
-    --tools "Read,Grep,Write,Edit,Bash(git:*),Bash(npm test:*)"
+    --tools "Read,Grep,Write,Edit,Bash" \
+    --allow "Bash(git:*),Bash(npm test:*)"
 
 ./scripts/statusline.sh          # backend:… · inbox 0 · awaiting decision 0
 ```
+
+`--tools` is the boundary: those are the tools that exist for this shift. `--allow`
+pre-approves specific commands inside them, so the shift is not stopped mid-run to ask about
+`git status`. Restricting without pre-approving is safe but slower; pre-approving without
+restricting is **not a boundary at all**.
+
+While it runs, `statusline.sh` also answers a question the ledger cannot answer about itself:
+each running station's recorded pid is checked, so a shift that died silently shows as
+`ORPHANED` instead of quietly looking like work in progress.
+
+When it ends, the last line of its log is the sign-off:
+
+```bash
+tail -1 .shifts/*-backend-add-retry.log
+# SHIFT-END backend add-retry done · retry added, suite green, PR opened not merged · reply mailbox/to-hub/...
+```
+
+That line is a doorbell, not a deliverable — read the reply and the artifacts, not this.
 
 When the reply lands in `mailbox/to-hub/`:
 

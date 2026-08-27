@@ -1,10 +1,12 @@
 {
-  "_note": "Dispatch ledger. Only the hub writes it; stations may read, never edit. Dispatching and recording are the same action.",
+  "_note": "Dispatch ledger. Only the hub writes it; stations may read, never edit. Dispatching and recording are the same action — and the pid is what catches the night that rule gets broken: statusline.sh checks it, so a station left marked running with a dead process shows up as ORPHANED instead of as work.",
   "agents": {
     "station-a": {
       "state": "running",
       "task": "<what this order is doing>",
-      "since": "2026-01-01 morning"
+      "since": "2026-01-01 morning",
+      "log": ".shifts/<timestamp>-station-a-<slug>.log",
+      "pid": 12345
     },
     "station-b": {
       "state": "idle",
