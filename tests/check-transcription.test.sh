@@ -168,6 +168,103 @@ expect "T13 missing file → 2" 2
 rc=0; "$CHECK" "$T/review3.md" >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 2 ] && ok "T13b wrong arg count → 2" || bad "T13b wrong arg count → 2" "exit $rc"
 
+# --- review side fails closed (D1 rework 1) -----------------------------------
+# T6 above already covers "review says 无 blocker, order has no transcription → 0".
+printf -- '# 审查结论\n\n## Blocker\n\nNo blockers.\n' >"$T/review0en.md"
+run_check "$T/review0en.md" "$T/o6.md"
+expect "T6b 'No blockers' (any case) → 0" 0
+
+printf '%s\n' '# 审查结论' '' '### B1 · 空输入崩溃' 'x' '### B2 · 令牌泄露' 'x' '### B3·重试无上限' 'x' >"$T/review-dot.md"
+order "$T/o15.md" "- B1 → 修:空输入返回错误" "- B2 → 修:日志脱敏"
+run_check "$T/review-dot.md" "$T/o15.md"
+expect "T15 '### B3·' heading, order has B1 B2" 1 "malformed blocker heading at line 7: ### B3·重试无上限"
+
+order "$T/o16.md" "- B1 → 修:空输入返回错误" "- B2 → 修:日志脱敏" "- B3 → 修:加上限"
+run_check "$T/review-dot.md" "$T/o16.md"
+expect "T16 same, order has B1 B2 B3 — still malformed" 1 "malformed blocker heading"
+
+printf '%s\n' '### B1 — 空输入崩溃' '### B2 — 令牌泄露' '### B3 — 重试无上限' >"$T/review-dash.md"
+order "$T/o17.md"
+run_check "$T/review-dash.md" "$T/o17.md"
+expect "T17 all headings '### Bn —', empty order" 1 "malformed blocker heading"
+expect "T17b … and no strict heading, no 无 blocker" 1 'review reply numbers no blockers and does not say "无 blocker" / "no blockers"'
+
+printf -- '# 审查结论\n\n## Blocker\n\n都挺好。\n' >"$T/review-silent.md"
+run_check "$T/review-silent.md" "$T/o6.md"
+expect "T18 no ### B and no 无 blocker" 1 "review reply numbers no blockers"
+
+cat >"$T/review-prose.md" <<'EOF'
+### B1 · 空输入崩溃
+B1 和 B2 的共同根因是没有校验输入。
+### B2 · 令牌泄露
+EOF
+order "$T/o19.md" "- B1 → 修:x" "- B2 → 修:y"
+run_check "$T/review-prose.md" "$T/o19.md"
+expect "T19 prose line starting 'B1 和 B2' is not a heading" 0
+
+printf '%s\n' '### B1 · 空输入崩溃' 'x' '### B2 · 令牌泄露' 'x' '### B2 · 重试无上限' 'x' >"$T/review-dup.md"
+order "$T/o20.md" "- B1 → 修:空输入返回错误" "- B2 → 修:日志脱敏"
+run_check "$T/review-dup.md" "$T/o20.md"
+expect "T20 review raises B2 twice" 1 "B2 raised twice in the review reply"
+
+printf '%s\n' '### B1 · one' '### B3 · three' >"$T/review-gap.md"
+order "$T/o21.md" "- B1 → 修:x" "- B3 → 修:z"
+run_check "$T/review-gap.md" "$T/o21.md"
+expect "T21 review has B1 B3 only" 1 "review reply skips B2 (numbering must run B1, B2, … without gaps)"
+
+printf '%s\n' '### B1 · 空输入崩溃' '```` ``` ```` 开头的行是行内代码' '### B2 · 令牌泄露' 'x' >"$T/review-inline.md"
+order "$T/o22.md" "- B1 → 修:空输入返回错误"
+run_check "$T/review-inline.md" "$T/o22.md"
+expect "T22 line opening with inline code is not a fence" 1 "missing B2"
+
+printf '%s\n' '### B1 · one' '```' '### B2 · two' >"$T/review-open.md"
+order "$T/o23.md" "- B1 → 修:x"
+run_check "$T/review-open.md" "$T/o23.md"
+expect "T23 unclosed fence in the review" 1 "unclosed code fence opened at line 2"
+
+order "$T/o23b.md" "- B1 → 修:x" "- B2 → 修:y" "- B3 → 修:z" '~~~'
+run_check "$T/review3.md" "$T/o23b.md"
+expect "T23b unclosed fence in the order" 1 "unclosed code fence opened at line"
+
+printf '%s\n' '### B1 · one' '~~~' '### B9 · x' '~~~' >"$T/review-tilde.md"
+order "$T/o24.md" "- B1 → 修:x"
+run_check "$T/review-tilde.md" "$T/o24.md"
+expect "T24 ~~~ fence: B9 inside is not counted" 0
+
+printf '%s\n' '### B1 · one' '````markdown' '```' '### B7 · 示例' '````' '### B2 · two' >"$T/review-4tick.md"
+order "$T/o25.md" "- B1 → 修:x" "- B2 → 修:y"
+run_check "$T/review-4tick.md" "$T/o25.md"
+expect "T25 \`\`\` inside a \`\`\`\` fence: B7 not counted, B2 counted" 0
+
+order "$T/o26.md" "- B1 → 修:" "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o26.md"
+expect "T26 empty fix" 1 "B1: empty entry"
+
+order "$T/o27.md" "- B1 → 修:…" "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o27.md"
+expect "T27 fix is just …" 1 "B1: placeholder not filled"
+
+order "$T/o27b.md" "- B1 → 修:x" "- B2 → fix: ..." "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o27b.md"
+expect "T27b fix is just ..." 1 "B2: placeholder not filled"
+
+order "$T/o28.md" "- B1 → 修：空输入返回错误" "- B2 → 不修：上游已脱敏" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o28.md"
+expect "T28 full-width colon" 0
+
+: >"$T/review11.md"
+for i in 1 2 3 4 5 6 7 8 9 10 11; do printf '### B%d · item %d\n' "$i" "$i" >>"$T/review11.md"; done
+order "$T/o29.md" "- B1 → 修:a" "- B2 → 修:b" "- B3 → 修:c" "- B4 → 修:d" "- B5 → 修:e" \
+  "- B6 → 修:f" "- B7 → 修:g" "- B8 → 修:h" "- B9 → 修:i" "- B11 → 修:k"
+run_check "$T/review11.md" "$T/o29.md"
+expect "T29 B1–B11, order misses B10" 1 "missing B10"
+
+# the real review that started this rework, against the real transcription of it
+run_check "$ROOT/tests/fixtures/review-2026-09-19-d1.md" "$ROOT/tests/fixtures/order-2026-09-19-d1-rework-1.md"
+expect "T30 real regression: d1 review vs rework-1 transcription" 0
+grep -qF 'ok · 3 blockers · 3 fix · 0 not fixing' <<<"$out" \
+  && ok "T30 counts" || bad "T30 counts" "stdout: $out"
+
 # --- dispatch gate ------------------------------------------------------------
 # station-b is idle in ledger.example.json
 setup_dispatch() {
