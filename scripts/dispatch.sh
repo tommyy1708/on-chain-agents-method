@@ -3,14 +3,13 @@
 # dispatch.sh — start one shift, and record it in the ledger. One action, not two.
 #
 #   ./scripts/dispatch.sh <station> <order-file> [--tools "<list>"] [--allow "<list>"] [--fg]
-#                         [--from-review <review-reply>]
 #
 # What it does
 #   1. checks the station and the order exist, and that the station is idle
-#      — and with --from-review, that the order accounts for every blocker in that
-#      review (scripts/check-transcription.sh). An order that names its review in a
-#      "来源:" / "Source:" line (outside code fences) must be given --from-review, and
-#      both must be the same file — each path resolved from the current directory.
+#      — and reads the order's front matter "review:" line: "review: none", or the
+#      review reply's path relative to $MAILBOX (like "reply:"). An order without one is
+#      not dispatched. With a path, the order must account for every blocker in that
+#      review (scripts/check-transcription.sh).
 #      On a failure nothing is written: no prompt, no log, no shift, no ledger entry.
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
@@ -42,16 +41,16 @@ LOGS="${LOGS:-.shifts}"
 
 die() { printf 'dispatch: %s\n' "$1" >&2; exit 1; }
 
-[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--allow \"…\"] [--fg] [--from-review <review-reply>]"
+[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--allow \"…\"] [--fg]"
 STATION="$1"; ORDER="$2"; shift 2
 
-TOOLS=""; ALLOW=""; BACKGROUND=1; REVIEW=""
+TOOLS=""; ALLOW=""; BACKGROUND=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --tools) TOOLS="${2:-}"; shift 2 ;;
     --allow) ALLOW="${2:-}"; shift 2 ;;
     --fg)    BACKGROUND=0; shift ;;
-    --from-review) REVIEW="${2:-}"; [ -n "$REVIEW" ] || die "--from-review needs a path"; shift 2 ;;
+    --from-review) die "--from-review was removed: declare the review in the order's front matter (review: <path relative to mailbox/>)" ;;
     *)       die "unknown argument: $1" ;;
   esac
 done
@@ -73,20 +72,14 @@ PY
 # --- a rework order must account for every blocker ----------------------------
 # Checked here, before anything is written, for the same reason the ledger is written
 # by this script: a check that is a separate command is a check that gets skipped.
-# And an order that names its review ("来源:" / "Source:") cannot skip it by leaving
-# --from-review off: a flag you have to remember is a check that gets skipped too.
+# Every order declares "review:" in its front matter, so whether the check runs never
+# depends on recognising a line in the body, or on a flag someone has to remember.
 CHECK="$(dirname "${BASH_SOURCE[0]}")/check-transcription.sh"
-source_path=$("$CHECK" --source "$ORDER") || die "cannot read the review source line in $ORDER. Nothing dispatched."
-if [ -n "$source_path" ]; then
-  [ -n "$REVIEW" ] || die "order names a review source ($source_path) but --from-review was not given. Nothing dispatched."
-  [ -f "$source_path" ] || die "review source named in the order does not exist: $source_path. Nothing dispatched."
-  realpath_of() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
-  [ "$(realpath_of "$source_path")" = "$(realpath_of "$REVIEW")" ] \
-    || die "order's review source ($source_path) is not the file given to --from-review ($REVIEW). Nothing dispatched."
-fi
-if [ -n "$REVIEW" ]; then
-  "$CHECK" "$REVIEW" "$ORDER" \
-    || die "rework order does not pass check-transcription against $REVIEW. Nothing dispatched."
+review=$("$CHECK" --review-path "$ORDER") || die "cannot read the review: line in $ORDER. Nothing dispatched."
+if [ "$review" != "none" ]; then
+  [ -f "$MAILBOX/$review" ] || die "review named in the order does not exist: $MAILBOX/$review. Nothing dispatched."
+  "$CHECK" "$MAILBOX/$review" "$ORDER" \
+    || die "rework order does not pass check-transcription against $MAILBOX/$review. Nothing dispatched."
 fi
 
 # --- build the prompt in a file ----------------------------------------------

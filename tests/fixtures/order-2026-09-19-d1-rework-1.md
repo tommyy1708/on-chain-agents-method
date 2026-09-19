@@ -1,6 +1,10 @@
-## 审查结论逐条交代(仅返工单)
+---
+status: NEW
+from: hub
+review: to-hub/2026-09-19-d1-check-script-review.md
+---
 
-来源:/Users/laoniu/work/coordination/mailbox/to-hub/2026-09-19-d1-check-script-review.md
+## 审查结论逐条交代(仅返工单)
 
 - B1 → 修:回信里的 blocker 标题跟严格格式 `### Bn · ` 差一个字节(`### B3·`、`### B3 —`、`#### B3 ·`、`### **B3** ·` 等)就被静默丢掉。改成:像 blocker 标题却不合格式的行报错;一个合格标题都没有时,回信必须明写「无 blocker」或 "no blockers",否则报错。
 - B2 → 修:回信里同一个编号出现两次被静默去重。改成:回信里编号重复报错;编号跳号(B1、B3)也报错。

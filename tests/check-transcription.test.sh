@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # check-transcription.test.sh — tests for scripts/check-transcription.sh and for the
-# review-source gate in scripts/dispatch.sh.
+# "review:" gate in scripts/dispatch.sh.
 #
 #   ./tests/check-transcription.test.sh
 #
@@ -77,7 +77,7 @@ EOF
 order() {  # order <file> <transcription lines…>
   local f="$1"; shift
   {
-    printf -- '---\nstatus: NEW\nfrom: hub\n---\n\n# 返工\n\n## 审查结论的转写\n\n来源:review.md\n\n'
+    printf -- '---\nstatus: NEW\nfrom: hub\nreview: to-hub/x-review.md\n---\n\n# 返工\n\n## 审查结论逐条交代\n\n'
     printf '%s\n' "$@"
     printf '\n## 怎么做\n\n1. 先写测试\n'
   } >"$f"
@@ -233,6 +233,50 @@ order "$T/o29.md" "- B1 → 修:a" "- B2 → 修:b" "- B3 → 修:c" "- B4 → �
 run_check "$T/review11.md" "$T/o29.md"
 expect "T29 B1–B11 (space-separated list), order misses B10" 1 "missing B10"
 
+# separators: half-width comma, full-width comma, 、 (D1 rework 3)
+order "$T/o64.md" "- B1 → 修:x" "- B2 → 修:y"
+i=0
+for m in 'B1、B2' 'B1,B2' 'B1，B2' 'B1 ， B2'; do
+  i=$((i + 1))
+  review "$T/review-sep$i.md" "$m" '### B1 · a' '### B2 · b'
+  run_check "$T/review-sep$i.md" "$T/o64.md"
+  expect "T64.$i blockers: $m" 0
+done
+
+review "$T/review-wu.md" "无" '## Blocker' '' '无。'
+run_check "$T/review-wu.md" "$T/o6.md"
+expect "T65 blockers: 无 is none" 0
+
+review "$T/review-trail.md" "B1, B2," '### B1 · a' '### B2 · b'
+run_check "$T/review-trail.md" "$T/o64.md"
+expect "T66 blockers: B1, B2, (trailing comma)" 1 "review reply blockers line unreadable: blockers: B1, B2,"
+
+review "$T/review-trail2.md" "B1、B2、" '### B1 · a' '### B2 · b'
+run_check "$T/review-trail2.md" "$T/o64.md"
+expect "T66b blockers: B1、B2、 (trailing 、)" 1 "unreadable"
+
+# an entry must start at the beginning of the line (S-c)
+review "$T/review12.md" "B1, B2" '### B1 · a' '### B2 · b'
+order "$T/o67.md" "  - B1 → 修:x" "- B2 → 修:y"
+run_check "$T/review12.md" "$T/o67.md"
+expect "T67 indented entry is not an entry" 1 "missing B1"
+
+# a line that mentions Bn in the wrong format is named in the error (S-f)
+order "$T/o68.md" "- B1 -> 修:x" "- B2 → 修:y"
+run_check "$T/review12.md" "$T/o68.md"
+ln=$(grep -n -- '- B1 -> ' "$T/o68.md" | cut -d: -f1)
+expect "T68 ASCII arrow: missing B1, and the line is named" 1 "missing B1 (line $ln mentions B1 but is not in the \"- B1 → 修:…\" format)"
+
+# whole word only: B10 is not B1; and a hint never turns a pass into a failure
+order "$T/o69.md" "B10 另说。" "- B2 → 修:y"
+run_check "$T/review12.md" "$T/o69.md"
+[ "$rc" -eq 1 ] && grep -qxF "check-transcription: missing B1" <<<"$err" \
+  && ok "T69 B10 does not count as a mention of B1" || bad "T69 B10 does not count as a mention of B1" "exit $rc · stderr: $err"
+
+order "$T/o69b.md" "B1 和 B2 的共同根因。" "- B1 → 修:x" "- B2 → 修:y"
+run_check "$T/review12.md" "$T/o69b.md"
+expect "T69b prose mentioning B1 next to a real entry" 0
+
 # --- rework order entries -----------------------------------------------------
 order "$T/o26.md" "- B1 → 修:" "- B2 → 修:y" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o26.md"
@@ -246,17 +290,49 @@ order "$T/o27b.md" "- B1 → 修:x" "- B2 → fix: ..." "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o27b.md"
 expect "T27b fix is just ..." 1 "B2: placeholder not filled"
 
-order "$T/o40.md" "- B1 → 修:……" "- B2 → 修:TBD" "- B3 → 不修:待补"
+order "$T/o40.md" "- B1 → 修:……" "- B2 → 修:y" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o40.md"
 expect "T40 修:……" 1 "B1: placeholder not filled"
-expect "T40b 修:TBD" 1 "B2: placeholder not filled"
-expect "T40c 不修:待补" 1 "B3: placeholder not filled"
 
-order "$T/o41.md" "- B1 → fix: todo" "- B2 → 修:待定" "- B3 → 修:。。。不是占位,是内容"
+order "$T/o41.md" "- B1 → 修:x" "- B2 → 修:y" "- B3 → 修:。。。不是占位,是内容"
 run_check "$T/review3.md" "$T/o41.md"
-expect "T41 fix: todo" 1 "B1: placeholder not filled"
-expect "T41b 修:待定" 1 "B2: placeholder not filled"
-grep -qF "B3:" <<<"$err" && bad "T41c text after dots is real content" "stderr: $err" || ok "T41c text after dots is real content"
+expect "T41 text after dots is real content" 0
+
+# not one letter, digit or Han character (D1 rework 3)
+i=0
+for c in $'​' '—' '-' '?' '？' '……'; do
+  i=$((i + 1))
+  order "$T/o60-$i.md" "- B1 → 修:$c" "- B2 → 修:y" "- B3 → 修:z"
+  run_check "$T/review3.md" "$T/o60-$i.md"
+  expect "T60.$i 修:$(printf %s "$c" | od -An -tx1 | tr -d ' \n') — no letter, digit or Han" 1 "B1: placeholder not filled"
+done
+
+# the template's placeholder with something added is still the placeholder
+order "$T/o61.md" "- B1 → 修:<转写后的要求>。" "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o61.md"
+expect "T61 修:<转写后的要求>。" 1 "B1: placeholder not filled"
+
+# every entry placeholder in the four templates, read from the templates, not copied
+review "$T/review1.md" "B1" '### B1 · one'
+n=0
+for tpl in work-order.md work-order.zh.md review-order.md review-order.zh.md; do
+  while IFS= read -r line; do
+    n=$((n + 1))
+    order "$T/o62-$n.md" "$(sed -E 's/^- B[0-9]+ /- B1 /' <<<"$line")"
+    run_check "$T/review1.md" "$T/o62-$n.md"
+    expect "T62.$n $tpl: '$line'" 1 "B1: placeholder not filled"
+  done < <(grep -E '^- B[0-9]+ → ' "$ROOT/templates/$tpl")
+done
+[ "$n" -ge 4 ] && ok "T62 found $n entry placeholders in the templates" \
+  || bad "T62 entry placeholders in the templates" "found only $n"
+
+# known limit: a to-do written in words is taken as accounted for. The human decided the
+# gate only checks that something was written; guessing words never ends.
+for c in '待补充' 'N/A' 'TODO: 转写' 'TBD' '待定'; do
+  order "$T/o63.md" "- B1 → 修:$c" "- B2 → 修:y" "- B3 → 修:z"
+  run_check "$T/review3.md" "$T/o63.md"
+  expect "T63 known limit: 修:$c passes" 0
+done
 
 order "$T/o28.md" "- B1 → 修：空输入返回错误" "- B2 → 不修：上游已脱敏" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o28.md"
@@ -305,8 +381,9 @@ run_check "$T/review3.md" "$T/o23b.md"
 expect "T23b unclosed fence in the order" 1 "unclosed code fence in rework order, opened at line"
 
 # --- real regression ----------------------------------------------------------
-# The real review that started D1, against the real transcription of it. Old format: no
-# manifest. It is no longer accepted, and this pins that.
+# The real review that started D1, against the real transcription of it (the order now
+# declares its review in front matter, as every order must). Old format: no manifest. It
+# is no longer accepted, and this pins that.
 run_check "$ROOT/tests/fixtures/review-2026-09-19-d1.md" "$ROOT/tests/fixtures/order-2026-09-19-d1-rework-1.md"
 expect "T30 real regression, old format (no blockers: line)" 1 'review reply has no "blockers:" line in its front matter'
 
@@ -317,48 +394,64 @@ expect "T30b real regression + 'blockers: B1, B2, B3'" 0
 grep -qF 'ok · 3 blockers · 3 fix · 0 not fixing' <<<"$out" \
   && ok "T30b counts" || bad "T30b counts" "stdout: $out"
 
-# --- --source -----------------------------------------------------------------
-run_check --source "$T/o1.md"
-[ "$rc" -eq 0 ] && [ "$out" = "review.md" ] && ok "T46 --source: 来源 outside a fence → path" \
-  || bad "T46 --source: 来源 outside a fence → path" "exit $rc · stdout '$out' · stderr $err"
+# --- --review-path --------------------------------------------------------------
+# review_path_ok <name> <order> <expected stdout>
+review_path_ok() {
+  run_check --review-path "$2"
+  [ "$rc" -eq 0 ] && [ "$out" = "$3" ] && ok "$1" || bad "$1" "exit $rc · stdout '$out' · stderr $err"
+}
+fm() {  # fm <file> <front matter lines…> — a front matter, then a body
+  local f="$1"; shift
+  { echo '---'; printf '%s\n' "$@"; printf -- '---\n\n# 工单\n\n改名。\n'; } >"$f"
+}
 
-printf '%s\n' '# 工单' '' 'Source: /tmp/some review.md' >"$T/o46b.md"
-run_check --source "$T/o46b.md"
-[ "$rc" -eq 0 ] && [ "$out" = "/tmp/some review.md" ] && ok "T46b --source: 'Source:' → path, as written" \
-  || bad "T46b --source: 'Source:' → path, as written" "exit $rc · stdout '$out' · stderr $err"
+review_path_ok "T70 review: to-hub/x-review.md → the path" "$T/o1.md" "to-hub/x-review.md"
 
-printf '%s\n' '# 工单' '' '模板长这样:' '' '```' '来源:<审查回信的路径>' 'Source: review.md' '```' >"$T/o47.md"
-run_check --source "$T/o47.md"
-[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "T47 --source: 来源 only inside a fence → nothing" \
-  || bad "T47 --source: 来源 only inside a fence → nothing" "exit $rc · stdout '$out' · stderr $err"
+fm "$T/o71.md" 'status: NEW' 'review: none'
+review_path_ok "T71 review: none → none" "$T/o71.md" "none"
+fm "$T/o71b.md" 'status: NEW' 'review: None'
+review_path_ok "T71b review: None → none" "$T/o71b.md" "none"
 
-printf '%s\n' '# 工单' '' '来源:<审查回信的路径>' >"$T/o48.md"
-run_check --source "$T/o48.md"
-expect "T48 --source: placeholder → 1" 1 "来源:<审查回信的路径>"
+fm "$T/o72.md" 'status: NEW' 'from: hub'
+run_check --review-path "$T/o72.md"
+expect "T72 no review: line" 1 'order has no "review:" line in its front matter (write "review: none" if this is not a rework order)'
 
-printf '%s\n' '# 工单' '' 'Source:   ' >"$T/o48b.md"
-run_check --source "$T/o48b.md"
-expect "T48b --source: empty → 1" 1 "review source line"
+printf '%s\n' '# 工单' '' 'review: to-hub/x-review.md' >"$T/o73.md"
+run_check --review-path "$T/o73.md"
+expect "T73 no front matter, review: in the body" 1 'order has no "review:" line in its front matter'
 
-run_check --source "$T/o6.md"
-[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "T49 --source: no 来源 → nothing, exit 0" \
-  || bad "T49 --source: no 来源 → nothing, exit 0" "exit $rc · stdout '$out' · stderr $err"
+fm "$T/o74.md" 'status: NEW' 'review: none' 'review: to-hub/x-review.md'
+run_check --review-path "$T/o74.md"
+expect "T74 two review: lines" 1 'order has two "review:" lines'
+
+fm "$T/o75.md" 'status: NEW' 'review:   '
+run_check --review-path "$T/o75.md"
+expect "T75 review: empty" 1 "order's review: line is not filled in: review:"
+
+# the placeholder in each of the four templates, read from the template
+for tpl in work-order.md work-order.zh.md review-order.md review-order.zh.md; do
+  line=$(grep -m1 '^review:' "$ROOT/templates/$tpl" || true)
+  fm "$T/o76.md" 'status: NEW' "$line"
+  run_check --review-path "$T/o76.md"
+  if [ -z "$line" ]; then bad "T76 $tpl: review: placeholder" "the template has no review: line"
+  else expect "T76 $tpl: '$line'" 1 "order's review: line is not filled in: $line"; fi
+done
 
 # --- dispatch gate ------------------------------------------------------------
-# station-b is idle in ledger.example.json. Dispatch runs from $T/d, where review.md is
-# a copy of review3.md — so the orders' "来源:review.md" names it.
+# station-b is idle in ledger.example.json. Dispatch runs from $T/d with MAILBOX=$T/d/mailbox,
+# where to-hub/x-review.md is a copy of review3.md — so the orders' "review: to-hub/x-review.md"
+# names it. Nothing named to-hub/ exists in $T/d itself.
 setup_dispatch() {
-  rm -rf "$T/d"; mkdir -p "$T/d/stations/station-b"
+  rm -rf "$T/d"; mkdir -p "$T/d/stations/station-b" "$T/d/mailbox/to-hub"
   cp "$ROOT/ledger.example.json" "$T/d/ledger.json"
   cp "$T/d/ledger.json" "$T/d/ledger.before"
-  cp "$T/review3.md" "$T/d/review.md"
-  cp "$T/review3.md" "$T/d/other-review.md"
+  cp "$T/review3.md" "$T/d/mailbox/to-hub/x-review.md"
 }
 run_dispatch() {  # run_dispatch <order> [dispatch args…]
   local o="$1"; shift
   rc=0
   ( cd "$T/d" && AGENT_CMD=echo STATIONS_DIR="$T/d/stations" LEDGER="$T/d/ledger.json" \
-      LOGS="$T/d/logs" "$DISPATCH" station-b "$o" --fg "$@" ) \
+      MAILBOX="$T/d/mailbox" LOGS="$T/d/logs" "$DISPATCH" station-b "$o" --fg "$@" ) \
     >"$T/out" 2>"$T/err" || rc=$?
   out="$(cat "$T/out")"; err="$(cat "$T/err")"
 }
@@ -380,49 +473,57 @@ dispatched() {
   else ok "$1 (station-b running)"; fi
 }
 
-# T8 refuse: the transcription misses B2
 setup_dispatch
-run_dispatch "$T/o2.md" --from-review review.md
-refused "T8 dispatch refuses a transcription that misses B2" "missing B2"
+run_dispatch "$T/o72.md"
+refused "T80 dispatch: order has no review: line" 'order has no "review:" line in its front matter'
 
-# T9 allow: same file, spelled differently
 setup_dispatch
-run_dispatch "$T/o1.md" --from-review "$T/d/./review.md"
-dispatched "T9 dispatch allows"
+run_dispatch "$T/o73.md"
+refused "T81 dispatch: review: in the body, not the front matter" 'order has no "review:" line in its front matter'
+
+setup_dispatch
+run_dispatch "$T/o74.md"
+refused "T82 dispatch: two review: lines" 'order has two "review:" lines'
+
+line=$(grep -m1 '^review:' "$ROOT/templates/work-order.zh.md" || true)
+fm "$T/o83.md" 'status: NEW' "$line"
+setup_dispatch
+run_dispatch "$T/o83.md"
+refused "T83 dispatch: review: is still the template's placeholder ('$line')" "order's review: line is not filled in"
+
+# review: none dispatches as before, without the gate — even an order that would fail it
+fm "$T/o84.md" 'status: NEW' 'review: none'
+printf '%s\n' '- B1 → 修:x' >>"$T/o84.md"
+setup_dispatch
+run_dispatch "$T/o84.md"
+dispatched "T84 dispatch: review: none"
+setup_dispatch
+run_dispatch "$T/o71b.md"
+dispatched "T84b dispatch: review: None"
 
 setup_dispatch
 run_dispatch "$T/o1.md"
-refused "T50 order names a source, no --from-review" \
-  "order names a review source (review.md) but --from-review was not given. Nothing dispatched."
+dispatched "T85 dispatch: review: to-hub/x-review.md, file under \$MAILBOX, order complete"
 
 setup_dispatch
-run_dispatch "$T/o1.md" --from-review other-review.md
-refused "T51 --from-review names another file" "is not the file given to --from-review"
+run_dispatch "$T/o2.md"
+refused "T86 dispatch: same, order misses B2" "missing B2"
 
 setup_dispatch
-rm "$T/d/review.md"
-run_dispatch "$T/o1.md" --from-review other-review.md
-refused "T52 the order's source does not exist" "does not exist"
+rm "$T/d/mailbox/to-hub/x-review.md"
+run_dispatch "$T/o1.md"
+refused "T87 dispatch: review: names a file that does not exist" "does not exist"
 
 setup_dispatch
-run_dispatch "$T/o48.md"
-refused "T53 source line is still the placeholder" "review source line"
+run_dispatch "$T/o1.md" --from-review to-hub/x-review.md
+refused "T88 dispatch: --from-review was removed" \
+  "--from-review was removed: declare the review in the order's front matter (review: <path relative to mailbox/>)"
 
+# the real transcription, in the new format, through dispatch
 setup_dispatch
-run_dispatch "$T/o47.md"
-dispatched "T54 来源 only inside a fence, no --from-review"
-
-# an order with no source and no --from-review dispatches as it always did — even
-# one that would fail the check
-printf '%s\n' '# 工单' '' '- B1 → 修:x' >"$T/o55.md"
-setup_dispatch
-run_dispatch "$T/o55.md"
-dispatched "T14 no source, no --from-review: unchanged, no gate"
-
-# no source, but --from-review given: the check still runs
-setup_dispatch
-run_dispatch "$T/o55.md" --from-review review.md
-refused "T14b no source, --from-review given: still checked" "missing B2"
+cp "$T/review-d1.md" "$T/d/mailbox/to-hub/2026-09-19-d1-check-script-review.md"
+run_dispatch "$ROOT/tests/fixtures/order-2026-09-19-d1-rework-1.md"
+dispatched "T89 dispatch: real regression, review: in the order's front matter"
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"
