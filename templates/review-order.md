@@ -40,7 +40,7 @@ review: none
 - No direct channel to the author. The verdict goes to the hub, which transcribes it.
 - <Extra prohibitions for this order: external calls / real messages / databases.>
 
-A review order always says `review: none`; what it reviews goes in the body.
+A review order always says `review: none`; what it reviews goes in the body. To quote entry lines in the body, put them in a code block or inline code.
 
 ## Reply
 
