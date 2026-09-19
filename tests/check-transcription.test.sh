@@ -354,6 +354,18 @@ order "$T/o49.md" "- B1 → 修:42" "- B2 → 修:y" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o49.md"
 expect "T49 修:42 — digits only" 0
 
+# backticks on both sides of a placeholder do not wrap it: it is still left in (D1 rework 5, M1).
+# Words after the last backtick too, so one span from the first backtick to the last would
+# not leave "nothing but inline code" behind.
+order "$T/o50.md" '- B1 → 修:`x` 照 <转写后的要求> 改 `y` 就行' "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o50.md"
+expect "T50 修:\`x\` 照 <转写后的要求> 改 \`y\` 就行 — placeholder between two code spans" 1 "B1: placeholder not filled"
+
+# an entry that is nothing but inline code, and no placeholder in it, is filled in (M2)
+order "$T/o51.md" '- B1 → 修:`retry=3`' "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o51.md"
+expect "T51 修:\`retry=3\` — only inline code, not a placeholder" 0
+
 order "$T/o28.md" "- B1 → 修：空输入返回错误" "- B2 → 不修：上游已脱敏" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o28.md"
 expect "T28 full-width colon" 0
@@ -488,6 +500,32 @@ for tpl in work-order.md work-order.zh.md; do
   review_path_ok "T79 $tpl as-is, review: none, placeholder entries → none" "$T/o79-$tpl" "none"
 done
 
+# review: none, and an unclosed fence above filled-in entries: the fence hides them (D1 rework 5, B1)
+fm "$T/o78b.md" 'status: NEW' 'review: none'
+printf '%s\n' 'Run this:' '```' 'make test' '' '## 审查结论逐条交代(仅返工单)' '' \
+  '- B1 → 修:空输入返回错误' '- B2 → 不修:上游已脱敏' >>"$T/o78b.md"
+run_check --review-path "$T/o78b.md"
+ln=$(grep -n -- '^```$' "$T/o78b.md" | cut -d: -f1)
+expect "T78b review: none + an unclosed fence above filled-in entries" 1 \
+  "order says \"review: none\" but has an unclosed code fence opened at line $ln; close it so its entry lines can be checked"
+
+# review: None is none — a filled-in entry is still caught (M3)
+fm "$T/o78c.md" 'status: NEW' 'review: None'
+printf '%s\n' '- B1 → 修:x' >>"$T/o78c.md"
+run_check --review-path "$T/o78c.md"
+expect "T78c review: None + a filled-in '- B1 → 修:x'" 1 "accounts for B1: declare the review it answers"
+
+# "not fixing" accounts for a blocker too (M4)
+fm "$T/o78d.md" 'status: NEW' 'review: none'
+printf '%s\n' '- B1 → 不修:上游已脱敏' >>"$T/o78d.md"
+run_check --review-path "$T/o78d.md"
+expect "T78d review: none + only '- B1 → 不修:上游已脱敏'" 1 "accounts for B1: declare the review it answers"
+
+# an entry line shown as an example inside a code block is not an entry
+fm "$T/o78e.md" 'status: NEW' 'review: none'
+printf '%s\n' '交代行长这样:' '```' '- B1 → 修:空输入返回错误' '```' >>"$T/o78e.md"
+review_path_ok "T78e review: none + an entry line inside a code block → none" "$T/o78e.md" "none"
+
 # --- dispatch gate ------------------------------------------------------------
 # station-b is idle in ledger.example.json. Dispatch runs from $T/d with MAILBOX=$T/d/mailbox,
 # where to-hub/x-review.md is a copy of review3.md — so the orders' "review: to-hub/x-review.md"
@@ -559,6 +597,14 @@ refused "T84c dispatch: review: none + a filled-in '- B1 → 修:x'" "declare th
 setup_dispatch
 run_dispatch "$T/o79-work-order.zh.md"
 dispatched "T84d dispatch: work-order.zh.md as-is, review: none, placeholder entries"
+
+setup_dispatch
+run_dispatch "$T/o78b.md"
+refused "T84e dispatch: review: none + an unclosed fence above filled-in entries" "has an unclosed code fence opened at line"
+
+setup_dispatch
+run_dispatch "$T/o78e.md"
+dispatched "T84f dispatch: review: none + an entry line inside a code block"
 
 setup_dispatch
 run_dispatch "$T/o1.md"

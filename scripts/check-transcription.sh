@@ -41,6 +41,8 @@
 #   recognising a line in the body. Also exit 1 on "review: none" when a line outside code
 #   fences is a filled-in "- Bn → 修:…" entry: that order answers a review it does not name,
 #   and "none" would skip the gate. Entries still left as the template's placeholders are fine.
+#   And exit 1 on "review: none" when a code fence is never closed: it would hide every
+#   entry line after it, as it would in the main check.
 #
 # Why: the hub transcribes the review into the rework order by hand, and the one thing
 # a hand transcription reliably does is drop a line. A dropped blocker is not rejected,
@@ -128,7 +130,12 @@ if sys.argv[1] == "--review-path":
     if not path or re.match(r"^<[^<>]*>$", path):
         fail(f"order's review: line is not filled in: {lines[0]}")
     if path.lower() == "none":
-        for n, line in lines_outside_fences(sys.argv[2], [], "order"):
+        fence_problems = []
+        order_lines = lines_outside_fences(sys.argv[2], fence_problems, "order")
+        if fence_problems:
+            opened = fence_problems[0].rsplit(" ", 1)[1]
+            fail(f'order says "review: none" but has an unclosed code fence opened at line {opened}; close it so its entry lines can be checked')
+        for n, line in order_lines:
             m = ENTRY.match(line)
             if m and m.group(3).strip() and not unfilled(m.group(3).strip()):
                 fail(f'order says "review: none" but line {n} accounts for {m.group(1)}: declare the review it answers')
