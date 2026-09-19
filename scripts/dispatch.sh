@@ -3,9 +3,13 @@
 # dispatch.sh — start one shift, and record it in the ledger. One action, not two.
 #
 #   ./scripts/dispatch.sh <station> <order-file> [--tools "<list>"] [--allow "<list>"] [--fg]
+#                         [--from-review <review-reply>]
 #
 # What it does
 #   1. checks the station and the order exist, and that the station is idle
+#      — and with --from-review, that the order accounts for every blocker in that
+#      review (scripts/check-transcription.sh). On a failure nothing is written:
+#      no prompt, no log, no shift, no ledger entry.
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
 #   4. writes the ledger: this station is now running, on this order, since now,
@@ -36,15 +40,16 @@ LOGS="${LOGS:-.shifts}"
 
 die() { printf 'dispatch: %s\n' "$1" >&2; exit 1; }
 
-[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--allow \"…\"] [--fg]"
+[ $# -ge 2 ] || die "usage: dispatch.sh <station> <order-file> [--tools \"…\"] [--allow \"…\"] [--fg] [--from-review <review-reply>]"
 STATION="$1"; ORDER="$2"; shift 2
 
-TOOLS=""; ALLOW=""; BACKGROUND=1
+TOOLS=""; ALLOW=""; BACKGROUND=1; REVIEW=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --tools) TOOLS="${2:-}"; shift 2 ;;
     --allow) ALLOW="${2:-}"; shift 2 ;;
     --fg)    BACKGROUND=0; shift ;;
+    --from-review) REVIEW="${2:-}"; [ -n "$REVIEW" ] || die "--from-review needs a path"; shift 2 ;;
     *)       die "unknown argument: $1" ;;
   esac
 done
@@ -62,6 +67,14 @@ print(d.get("agents", {}).get(sys.argv[2], {}).get("state", "unknown"))
 PY
 )
 [ "$state" = "idle" ] || die "station '$STATION' is '$state', not idle. One shift at a time per station."
+
+# --- a rework order must account for every blocker ----------------------------
+# Checked here, before anything is written, for the same reason the ledger is written
+# by this script: a check that is a separate command is a check that gets skipped.
+if [ -n "$REVIEW" ]; then
+  "$(dirname "${BASH_SOURCE[0]}")/check-transcription.sh" "$REVIEW" "$ORDER" \
+    || die "rework order does not pass check-transcription against $REVIEW. Nothing dispatched."
+fi
 
 # --- build the prompt in a file ----------------------------------------------
 mkdir -p "$LOGS"
