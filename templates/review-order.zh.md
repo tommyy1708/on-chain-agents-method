@@ -52,7 +52,11 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 - 编号从 B1 起,连续,不跳号。
 - **只有 blocker 编号**。Should-fix 与 nit 照旧另列,不用 B 开头的编号。
-- 没有 blocker 时,写「无 blocker」,不写任何 `### B` 标题。
+- 回信 frontmatter 里加一行,和 `status:`、`from:` 并列。**写完全部 blocker 之后,最后回头填** —— 先填清单再找问题,等于先报了数:
+  - 有 blocker:`blockers: B1, B2, B3`,和正文里的 `### Bn · ` 标题一一对应,不多不少;
+  - 没有:`blockers: none`,正文不写任何 `### B` 标题。
+
+  返工单就是对着这一行核的。这一行缺了、读不懂、或者和标题对不上,返工单都派不出去。
 
 Should-fix 与 nit 分开列,别混进 blocker。
 **每条结论要能被证伪** —— 说某处会出问题,就给出让它出问题的确切输入。

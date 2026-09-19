@@ -21,6 +21,8 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 来源:<审查回信的路径>
 
+> 这一行的路径必须和派单时 `dispatch.sh --from-review` 给的是同一个文件。有这一行的工单,不带 `--from-review` 派不出去。
+
 - B1 → 修:<转写后的要求>
 - B2 → 不修:<理由;谁决定的>
 

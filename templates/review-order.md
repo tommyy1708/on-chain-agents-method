@@ -52,7 +52,11 @@ Number every blocker, each under its own third-level heading:
 
 - Numbering starts at B1 and runs consecutively — no gaps.
 - **Only blockers are numbered.** Should-fix and nits are listed separately as before, with no B-prefixed numbers.
-- If there are no blockers, write "no blockers" and do not write any `### B` heading.
+- Add one line to the reply's front matter, next to `status:` and `from:`. **Fill it in last, after every blocker is written** — a list filled in first is a count announced before the search:
+  - blockers found: `blockers: B1, B2, B3` — exactly the `### Bn · ` headings in the body, no more, no fewer;
+  - none: `blockers: none`, and no `### B` heading anywhere in the body.
+
+  This line is what the rework order is checked against. A missing or unreadable line, or one that disagrees with the headings, stops the rework from being dispatched.
 
 Keep should-fix and nits separate from blockers.
 **Every finding must be falsifiable** — if you say something breaks, give the exact input that breaks it.

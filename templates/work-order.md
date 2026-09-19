@@ -21,6 +21,8 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 Source: <path to the review reply>
 
+> This must be the same file you give `dispatch.sh --from-review`. An order with a Source line is not dispatched without it.
+
 - B1 → fix: <the requirement, as transcribed>
 - B2 → not fixing: <reason; who decided>
 
