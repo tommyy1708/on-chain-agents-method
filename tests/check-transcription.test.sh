@@ -334,6 +334,26 @@ for c in '待补充' 'N/A' 'TODO: 转写' 'TBD' '待定'; do
   expect "T63 known limit: 修:$c passes" 0
 done
 
+# a placeholder in `inline code` is being talked about, not left unfilled (D1 rework 4, S2)
+order "$T/o46.md" '- B1 → 修:把模板里的 `<转写后的要求>` 改成 `<要求原文>`' "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o46.md"
+expect "T46 placeholder quoted in inline code, with words around it" 0
+
+# … unless the inline code is all there is
+order "$T/o47.md" '- B1 → 修:`<转写后的要求>`' "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o47.md"
+expect "T47 修:\`<转写后的要求>\` — nothing but inline code" 1 "B1: placeholder not filled"
+
+# known cost: a placeholder quoted WITHOUT backticks is still taken as unfilled
+order "$T/o48.md" "- B1 → 修:照 <转写后的要求> 改" "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o48.md"
+expect "T48 known cost: 修:照 <转写后的要求> 改 (no backticks) is refused" 1 "B1: placeholder not filled"
+
+# digits alone are content
+order "$T/o49.md" "- B1 → 修:42" "- B2 → 修:y" "- B3 → 修:z"
+run_check "$T/review3.md" "$T/o49.md"
+expect "T49 修:42 — digits only" 0
+
 order "$T/o28.md" "- B1 → 修：空输入返回错误" "- B2 → 不修：上游已脱敏" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o28.md"
 expect "T28 full-width colon" 0
@@ -394,6 +414,14 @@ expect "T30b real regression + 'blockers: B1, B2, B3'" 0
 grep -qF 'ok · 3 blockers · 3 fix · 0 not fixing' <<<"$out" \
   && ok "T30b counts" || bad "T30b counts" "stdout: $out"
 
+# The hub's own rework-3 order against the rework-2 review it transcribed (both from the
+# archive, the hub's closing note removed; the order given the review: line it lacked).
+# Its B2 line quotes `<转写后的要求>。` in inline code, and was refused as unfilled.
+run_check "$ROOT/tests/fixtures/review-2026-09-19-d1-rework-2.md" "$ROOT/tests/fixtures/order-2026-09-19-d1-rework-3.md"
+expect "T30c real regression: rework-3 order vs rework-2 review" 0
+grep -qF 'ok · 2 blockers · 2 fix · 0 not fixing' <<<"$out" \
+  && ok "T30c counts" || bad "T30c counts" "stdout: $out"
+
 # --- --review-path --------------------------------------------------------------
 # review_path_ok <name> <order> <expected stdout>
 review_path_ok() {
@@ -428,13 +456,36 @@ fm "$T/o75.md" 'status: NEW' 'review:   '
 run_check --review-path "$T/o75.md"
 expect "T75 review: empty" 1 "order's review: line is not filled in: review:"
 
-# the placeholder in each of the four templates, read from the template
-for tpl in work-order.md work-order.zh.md review-order.md review-order.zh.md; do
+# the placeholder in each of the two work-order templates, read from the template
+for tpl in work-order.md work-order.zh.md; do
   line=$(grep -m1 '^review:' "$ROOT/templates/$tpl" || true)
   fm "$T/o76.md" 'status: NEW' "$line"
   run_check --review-path "$T/o76.md"
   if [ -z "$line" ]; then bad "T76 $tpl: review: placeholder" "the template has no review: line"
   else expect "T76 $tpl: '$line'" 1 "order's review: line is not filled in: $line"; fi
+done
+
+# a review order is never a rework order: its templates say "review: none", literally (D1 rework 4, S3)
+for tpl in review-order.md review-order.zh.md; do
+  line=$(grep -m1 '^review:' "$ROOT/templates/$tpl" || true)
+  fm "$T/o77.md" 'status: NEW' "$line"
+  review_path_ok "T77 $tpl: '$line' → none" "$T/o77.md" "none"
+done
+
+# review: none, but a filled-in entry line: the order answers a review it does not name (S1)
+fm "$T/o78.md" 'status: NEW' 'review: none'
+printf '%s\n' '## 审查结论逐条交代(仅返工单)' '' '- B1 → 修:x' >>"$T/o78.md"
+run_check --review-path "$T/o78.md"
+ln=$(grep -n -- '- B1 → ' "$T/o78.md" | cut -d: -f1)
+expect "T78 review: none + a filled-in '- B1 → 修:x'" 1 \
+  "order says \"review: none\" but line $ln accounts for B1: declare the review it answers"
+
+# review: none on a work-order template filled in as an ordinary order, its rework section
+# left as the template has it — the entry placeholders are not accounting for anything
+for tpl in work-order.md work-order.zh.md; do
+  sed 's/^review:.*/review: none/' "$ROOT/templates/$tpl" >"$T/o79-$tpl"
+  if ! grep -qE '^- B[0-9]+ → ' "$T/o79-$tpl"; then bad "T79 $tpl" "the template has no entry lines"; continue; fi
+  review_path_ok "T79 $tpl as-is, review: none, placeholder entries → none" "$T/o79-$tpl" "none"
 done
 
 # --- dispatch gate ------------------------------------------------------------
@@ -491,15 +542,23 @@ setup_dispatch
 run_dispatch "$T/o83.md"
 refused "T83 dispatch: review: is still the template's placeholder ('$line')" "order's review: line is not filled in"
 
-# review: none dispatches as before, without the gate — even an order that would fail it
+# review: none dispatches as before, without the gate
 fm "$T/o84.md" 'status: NEW' 'review: none'
-printf '%s\n' '- B1 → 修:x' >>"$T/o84.md"
 setup_dispatch
 run_dispatch "$T/o84.md"
-dispatched "T84 dispatch: review: none"
+dispatched "T84 dispatch: review: none, no entry lines"
 setup_dispatch
 run_dispatch "$T/o71b.md"
 dispatched "T84b dispatch: review: None"
+
+# … but not an order that accounts for a blocker (S1)
+setup_dispatch
+run_dispatch "$T/o78.md"
+refused "T84c dispatch: review: none + a filled-in '- B1 → 修:x'" "declare the review it answers"
+
+setup_dispatch
+run_dispatch "$T/o79-work-order.zh.md"
+dispatched "T84d dispatch: work-order.zh.md as-is, review: none, placeholder entries"
 
 setup_dispatch
 run_dispatch "$T/o1.md"

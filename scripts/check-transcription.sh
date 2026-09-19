@@ -16,7 +16,9 @@
 #   accounted for twice, when an entry is empty, when "not fixing" has no reason, or
 #   when the entry is still a placeholder: not one letter, digit or Han character in it
 #   (—, ?, ……, a zero-width space), or it contains one of the templates' placeholders
-#   word for word. Pass: exit 0 and one summary line. Bad usage: exit 2.
+#   word for word. A placeholder quoted in `inline code` does not count, unless the inline
+#   code is all the entry has; quoted without backticks, it still counts — a known cost.
+#   Pass: exit 0 and one summary line. Bad usage: exit 2.
 #   It only checks that each blocker was accounted for, not how well: "待补充", "N/A" or
 #   "TODO: 转写" pass. That is a known limit, decided by the human — a list of to-do
 #   words is a guess, and guesses never end.
@@ -36,7 +38,9 @@
 #   and prints "none" or the path as written (relative to mailbox/). Exit 1 when there is
 #   no front matter or no such line, when there are two, or when it is empty or still a
 #   <…> placeholder. Every order must declare it, so the gate never depends on
-#   recognising a line in the body.
+#   recognising a line in the body. Also exit 1 on "review: none" when a line outside code
+#   fences is a filled-in "- Bn → 修:…" entry: that order answers a review it does not name,
+#   and "none" would skip the gate. Entries still left as the template's placeholders are fine.
 #
 # Why: the hub transcribes the review into the rework order by hand, and the one thing
 # a hand transcription reliably does is drop a line. A dropped blocker is not rejected,
@@ -102,6 +106,14 @@ ENTRY = re.compile(r"^- (B[0-9]+) → (修|不修|fix|not fixing)[:：](.*)$")
 TEMPLATE_PLACEHOLDERS = ("<转写后的要求>", "<理由;谁决定的>",
                          "<the requirement, as transcribed>", "<reason; who decided>")
 
+def unfilled(text):
+    """An entry still left as a placeholder. A placeholder in `inline code` is being talked
+    about, not left in — unless the inline code is all the entry has."""
+    bare = re.sub(r"`[^`]*`", "", text)
+    return (not any(c.isalnum() for c in text)
+            or any(p in bare for p in TEMPLATE_PLACEHOLDERS)
+            or (any(p in text for p in TEMPLATE_PLACEHOLDERS) and not any(c.isalnum() for c in bare)))
+
 def fail(message):
     print(f"check-transcription: {message}", file=sys.stderr)
     sys.exit(1)
@@ -115,6 +127,11 @@ if sys.argv[1] == "--review-path":
     path = REVIEW.match(lines[0]).group(1).strip()
     if not path or re.match(r"^<[^<>]*>$", path):
         fail(f"order's review: line is not filled in: {lines[0]}")
+    if path.lower() == "none":
+        for n, line in lines_outside_fences(sys.argv[2], [], "order"):
+            m = ENTRY.match(line)
+            if m and m.group(3).strip() and not unfilled(m.group(3).strip()):
+                fail(f'order says "review: none" but line {n} accounts for {m.group(1)}: declare the review it answers')
     print("none" if path.lower() == "none" else path)
     sys.exit(0)
 
@@ -169,7 +186,7 @@ for _, line in order_lines:
     seen.add(b)
     if listed is not None and b not in raised:
         problems.append(f"unknown {b} (not in the review reply)")
-    if text and (not any(c.isalnum() for c in text) or any(p in text for p in TEMPLATE_PLACEHOLDERS)):
+    if text and unfilled(text):
         problems.append(f"{b}: placeholder not filled")
     elif verb in ("不修", "not fixing"):
         not_fixing += 1
