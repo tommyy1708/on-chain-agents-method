@@ -8,8 +8,10 @@
 # What it does
 #   1. checks the station and the order exist, and that the station is idle
 #      — and with --from-review, that the order accounts for every blocker in that
-#      review (scripts/check-transcription.sh). On a failure nothing is written:
-#      no prompt, no log, no shift, no ledger entry.
+#      review (scripts/check-transcription.sh). An order that names its review in a
+#      "来源:" / "Source:" line (outside code fences) must be given --from-review, and
+#      both must be the same file — each path resolved from the current directory.
+#      On a failure nothing is written: no prompt, no log, no shift, no ledger entry.
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
 #   4. writes the ledger: this station is now running, on this order, since now,
@@ -71,8 +73,19 @@ PY
 # --- a rework order must account for every blocker ----------------------------
 # Checked here, before anything is written, for the same reason the ledger is written
 # by this script: a check that is a separate command is a check that gets skipped.
+# And an order that names its review ("来源:" / "Source:") cannot skip it by leaving
+# --from-review off: a flag you have to remember is a check that gets skipped too.
+CHECK="$(dirname "${BASH_SOURCE[0]}")/check-transcription.sh"
+source_path=$("$CHECK" --source "$ORDER") || die "cannot read the review source line in $ORDER. Nothing dispatched."
+if [ -n "$source_path" ]; then
+  [ -n "$REVIEW" ] || die "order names a review source ($source_path) but --from-review was not given. Nothing dispatched."
+  [ -f "$source_path" ] || die "review source named in the order does not exist: $source_path. Nothing dispatched."
+  realpath_of() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+  [ "$(realpath_of "$source_path")" = "$(realpath_of "$REVIEW")" ] \
+    || die "order's review source ($source_path) is not the file given to --from-review ($REVIEW). Nothing dispatched."
+fi
 if [ -n "$REVIEW" ]; then
-  "$(dirname "${BASH_SOURCE[0]}")/check-transcription.sh" "$REVIEW" "$ORDER" \
+  "$CHECK" "$REVIEW" "$ORDER" \
     || die "rework order does not pass check-transcription against $REVIEW. Nothing dispatched."
 fi
 
