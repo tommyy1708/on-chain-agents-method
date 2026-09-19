@@ -42,5 +42,17 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 ## Reply
 
 Give an explicit verdict: **ready to merge**, or **blockers** (listed one by one, each with **reproduction steps** and a location).
+
+Number every blocker, each under its own third-level heading:
+
+```
+### B1 · <one-line title>
+<location, reproduction steps, why it is a blocker>
+```
+
+- Numbering starts at B1 and runs consecutively — no gaps.
+- **Only blockers are numbered.** Should-fix and nits are listed separately as before, with no B-prefixed numbers.
+- If there are no blockers, write "no blockers" and do not write any `### B` heading.
+
 Keep should-fix and nits separate from blockers.
 **Every finding must be falsifiable** — if you say something breaks, give the exact input that breaks it.

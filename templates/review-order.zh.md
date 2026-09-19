@@ -42,5 +42,17 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 ## 回信
 
 给**明确 verdict**:可以合并 / 有 blocker(逐条列,每条带**复现步骤**与位置)。
+
+每条 blocker 编号,各占一个三级标题:
+
+```
+### B1 · <一句话标题>
+<位置、复现步骤、为什么是 blocker>
+```
+
+- 编号从 B1 起,连续,不跳号。
+- **只有 blocker 编号**。Should-fix 与 nit 照旧另列,不用 B 开头的编号。
+- 没有 blocker 时,写「无 blocker」,不写任何 `### B` 标题。
+
 Should-fix 与 nit 分开列,别混进 blocker。
 **每条结论要能被证伪** —— 说某处会出问题,就给出让它出问题的确切输入。

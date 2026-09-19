@@ -17,6 +17,15 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 <The goal, and **what counts as done**. The criterion must be falsifiable — "make it good" is not one; "changing X must turn Y red" is.>
 
+## Review findings, one by one (rework orders only)
+
+Source: <path to the review reply>
+
+- B1 → fix: <the requirement, as transcribed>
+- B2 → not fixing: <reason; who decided>
+
+> **Every** B number in the review reply must appear here, one per line. "Not fixing" must be followed by a reason — never empty. **If this is not a rework order, delete this whole section.**
+
 ## How (the plan)
 
 1. <First>
