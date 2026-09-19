@@ -3,7 +3,7 @@ status: NEW
 from: hub
 needs: 独立复审
 reply: to-hub/YYYY-MM-DD-<slug>.md
-review: <none,或审查回信的路径(相对 mailbox/,和 reply: 一样)>
+review: none
 ---
 
 # 复审:<改动标识>
@@ -39,6 +39,8 @@ review: <none,或审查回信的路径(相对 mailbox/,和 reply: 一样)>
   要打刀就**复制到临时目录里打**,原处保持字节不变,收尾自证。
 - 不与作者直接通信。结论回给枢纽,由枢纽转写。
 - <本单额外的禁止项:外部调用 / 真实通信 / 数据库……>
+
+审查单一律 `review: none`,它要审查的对象写在正文里。
 
 ## 回信
 

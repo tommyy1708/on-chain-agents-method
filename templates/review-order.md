@@ -3,7 +3,7 @@ status: NEW
 from: hub
 needs: independent review
 reply: to-hub/YYYY-MM-DD-<slug>.md
-review: <none, or the review reply's path (relative to mailbox/, like reply:)>
+review: none
 ---
 
 # Review: <change identifier>
@@ -39,6 +39,8 @@ review: <none, or the review reply's path (relative to mailbox/, like reply:)>
   To swing a knife, **copy to a scratch directory and swing it there**; the original stays byte-identical, and you prove it at the end.
 - No direct channel to the author. The verdict goes to the hub, which transcribes it.
 - <Extra prohibitions for this order: external calls / real messages / databases.>
+
+A review order always says `review: none`; what it reviews goes in the body.
 
 ## Reply
 
