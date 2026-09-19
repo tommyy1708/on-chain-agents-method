@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: <这一单要对方做什么;若已获授权,写明「已发令,本班次执行」>
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: <none,或审查回信的路径(相对 mailbox/,和 reply: 一样)>
 ---
 
 # <一句话标题:做什么>
@@ -19,9 +20,7 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 ## 审查结论逐条交代(仅返工单)
 
-来源:<审查回信的路径>
-
-> 这一行的路径必须和派单时 `dispatch.sh --from-review` 给的是同一个文件。有这一行的工单,不带 `--from-review` 派不出去。
+本小节对照的审查回信,就是 frontmatter 里 `review:` 指向的那一份。
 
 - B1 → 修:<转写后的要求>
 - B2 → 不修:<理由;谁决定的>

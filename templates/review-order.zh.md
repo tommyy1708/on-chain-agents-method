@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: 独立复审
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: <none,或审查回信的路径(相对 mailbox/,和 reply: 一样)>
 ---
 
 # 复审:<改动标识>
@@ -57,6 +58,9 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
   - 没有:`blockers: none`,正文不写任何 `### B` 标题。
 
   返工单就是对着这一行核的。这一行缺了、读不懂、或者和标题对不上,返工单都派不出去。
+- 清单用半角逗号、中文逗号或顿号分隔都可以:`blockers: B1, B2`、`blockers: B1，B2`、`blockers: B1、B2` 读出来一样。
+- 行首的 `### B` 只能是真的 blocker;要举例,就放进围栏里。
+- 写完可以自检一次:`scripts/check-transcription.sh <这封回信> <一张草稿返工单>`。
 
 Should-fix 与 nit 分开列,别混进 blocker。
 **每条结论要能被证伪** —— 说某处会出问题,就给出让它出问题的确切输入。

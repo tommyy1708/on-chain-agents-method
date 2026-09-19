@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: independent review
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: <none, or the review reply's path (relative to mailbox/, like reply:)>
 ---
 
 # Review: <change identifier>
@@ -57,6 +58,9 @@ Number every blocker, each under its own third-level heading:
   - none: `blockers: none`, and no `### B` heading anywhere in the body.
 
   This line is what the rework order is checked against. A missing or unreadable line, or one that disagrees with the headings, stops the rework from being dispatched.
+- Separate the list with half-width commas, full-width commas or 、 — `blockers: B1, B2`, `blockers: B1，B2` and `blockers: B1、B2` all read the same.
+- A line that starts with `### B` is only ever a real blocker. To show an example, put it inside a code fence.
+- When you are done, you can check yourself once: run `scripts/check-transcription.sh <this reply> <a draft rework order>`.
 
 Keep should-fix and nits separate from blockers.
 **Every finding must be falsifiable** — if you say something breaks, give the exact input that breaks it.

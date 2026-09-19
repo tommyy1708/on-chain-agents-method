@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: <what this order asks of the station; if already authorised, say "authorised — execute this shift">
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: <none, or the review reply's path (relative to mailbox/, like reply:)>
 ---
 
 # <One line: what is being built>
@@ -19,9 +20,7 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 
 ## Review findings, one by one (rework orders only)
 
-Source: <path to the review reply>
-
-> This must be the same file you give `dispatch.sh --from-review`. An order with a Source line is not dispatched without it.
+The review reply this section answers is the one `review:` in the front matter points to.
 
 - B1 → fix: <the requirement, as transcribed>
 - B2 → not fixing: <reason; who decided>
