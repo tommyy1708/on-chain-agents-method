@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: <what this order asks of the station; if already authorised, say "authorised — execute this shift">
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: <none, or the review reply's path (relative to mailbox/, like reply:)>
 ---
 
 # <One line: what is being built>
@@ -16,6 +17,15 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 ## What is wanted
 
 <The goal, and **what counts as done**. The criterion must be falsifiable — "make it good" is not one; "changing X must turn Y red" is.>
+
+## Review findings, one by one (rework orders only)
+
+The review reply this section answers is the one `review:` in the front matter points to.
+
+- B1 → fix: <the requirement, as transcribed>
+- B2 → not fixing: <reason; who decided>
+
+> **Every** B number in the review reply must appear here, one per line. "Not fixing" must be followed by a reason — never empty. **If this is not a rework order, delete this whole section.**
 
 ## How (the plan)
 

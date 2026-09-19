@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: 独立复审
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: none
 ---
 
 # 复审:<改动标识>
@@ -39,8 +40,29 @@ reply: to-hub/YYYY-MM-DD-<slug>.md
 - 不与作者直接通信。结论回给枢纽,由枢纽转写。
 - <本单额外的禁止项:外部调用 / 真实通信 / 数据库……>
 
+审查单一律 `review: none`,它要审查的对象写在正文里;正文要引用交代行,请放进代码块或行内代码。
+
 ## 回信
 
 给**明确 verdict**:可以合并 / 有 blocker(逐条列,每条带**复现步骤**与位置)。
+
+每条 blocker 编号,各占一个三级标题:
+
+```
+### B1 · <一句话标题>
+<位置、复现步骤、为什么是 blocker>
+```
+
+- 编号从 B1 起,连续,不跳号。
+- **只有 blocker 编号**。Should-fix 与 nit 照旧另列,不用 B 开头的编号。
+- 回信 frontmatter 里加一行,和 `status:`、`from:` 并列。**写完全部 blocker 之后,最后回头填** —— 先填清单再找问题,等于先报了数:
+  - 有 blocker:`blockers: B1, B2, B3`,和正文里的 `### Bn · ` 标题一一对应,不多不少;
+  - 没有:`blockers: none`,正文不写任何 `### B` 标题。
+
+  返工单就是对着这一行核的。这一行缺了、读不懂、或者和标题对不上,返工单都派不出去。
+- 清单用半角逗号、中文逗号或顿号分隔都可以:`blockers: B1, B2`、`blockers: B1，B2`、`blockers: B1、B2` 读出来一样。
+- 行首的 `### B` 只能是真的 blocker;要举例,就放进围栏里。
+- 写完可以自检一次:`scripts/check-transcription.sh <这封回信> <一张草稿返工单>`。
+
 Should-fix 与 nit 分开列,别混进 blocker。
 **每条结论要能被证伪** —— 说某处会出问题,就给出让它出问题的确切输入。

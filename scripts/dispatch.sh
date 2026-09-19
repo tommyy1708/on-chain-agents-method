@@ -6,6 +6,11 @@
 #
 # What it does
 #   1. checks the station and the order exist, and that the station is idle
+#      — and reads the order's front matter "review:" line: "review: none", or the
+#      review reply's path relative to $MAILBOX (like "reply:"). An order without one is
+#      not dispatched. With a path, the order must account for every blocker in that
+#      review (scripts/check-transcription.sh).
+#      On a failure nothing is written: no prompt, no log, no shift, no ledger entry.
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
 #   4. writes the ledger: this station is now running, on this order, since now,
@@ -45,6 +50,7 @@ while [ $# -gt 0 ]; do
     --tools) TOOLS="${2:-}"; shift 2 ;;
     --allow) ALLOW="${2:-}"; shift 2 ;;
     --fg)    BACKGROUND=0; shift ;;
+    --from-review) die "--from-review was removed: declare the review in the order's front matter (review: <path relative to mailbox/>)" ;;
     *)       die "unknown argument: $1" ;;
   esac
 done
@@ -62,6 +68,19 @@ print(d.get("agents", {}).get(sys.argv[2], {}).get("state", "unknown"))
 PY
 )
 [ "$state" = "idle" ] || die "station '$STATION' is '$state', not idle. One shift at a time per station."
+
+# --- a rework order must account for every blocker ----------------------------
+# Checked here, before anything is written, for the same reason the ledger is written
+# by this script: a check that is a separate command is a check that gets skipped.
+# Every order declares "review:" in its front matter, so whether the check runs never
+# depends on recognising a line in the body, or on a flag someone has to remember.
+CHECK="$(dirname "${BASH_SOURCE[0]}")/check-transcription.sh"
+review=$("$CHECK" --review-path "$ORDER") || die "cannot read the review: line in $ORDER. Nothing dispatched."
+if [ "$review" != "none" ]; then
+  [ -f "$MAILBOX/$review" ] || die "review named in the order does not exist: $MAILBOX/$review. Nothing dispatched."
+  "$CHECK" "$MAILBOX/$review" "$ORDER" \
+    || die "rework order does not pass check-transcription against $MAILBOX/$review. Nothing dispatched."
+fi
 
 # --- build the prompt in a file ----------------------------------------------
 mkdir -p "$LOGS"
