@@ -14,7 +14,9 @@
 #   2. builds the launch prompt in a temp FILE, then passes it with "$(cat …)"
 #   3. starts one agent process — background by default, log to disk
 #   4. writes the ledger: this station is now running, on this order, since now,
-#      AND the process id, so the status display can check the ledger against reality
+#      AND the process id, so the status display can check the ledger against reality.
+#      With --fg the ledger is written first and the pid dropped when the shift returns,
+#      so the recorded pid is alive for exactly as long as the shift is — see below.
 #
 # Two different permission flags, and they are not interchangeable
 #   --tools "…"  the set of tools that EXIST for this shift. This is the boundary.
@@ -126,16 +128,9 @@ launch() {
     $AGENT_CMD "$@" ) >"$log_file" 2>&1
 }
 
-if [ "$BACKGROUND" -eq 1 ]; then
-  launch &
-  pid=$!
-else
-  launch
-  pid=$$
-fi
-
 # --- record, in the same action ----------------------------------------------
-python3 - "$LEDGER" "$STATION" "$ORDER" "$log_file" "$pid" <<'PY'
+record() {  # record <pid>: this station is now running this order, under this process
+  python3 - "$LEDGER" "$STATION" "$ORDER" "$log_file" "$1" <<'PY'
 import json, sys, datetime
 ledger, station, order, log, pid = sys.argv[1:6]
 d = json.load(open(ledger))
@@ -152,6 +147,48 @@ d.setdefault("backlog", []).insert(0,
     f"[dispatched · {datetime.datetime.now():%Y-%m-%d %H:%M}] {station} ← {order}. Log: {log}.")
 json.dump(d, open(ledger, "w"), ensure_ascii=False, indent=2)
 PY
+}
+
+forget_pid() {  # the shift has returned; the pid it ran under is on its way out
+  python3 - "$LEDGER" "$STATION" <<'PY'
+import json, sys
+ledger, station = sys.argv[1:3]
+d = json.load(open(ledger))
+d.get("agents", {}).get(station, {}).pop("pid", None)
+json.dump(d, open(ledger, "w"), ensure_ascii=False, indent=2)
+PY
+}
+
+if [ "$BACKGROUND" -eq 1 ]; then
+  launch &
+  pid=$!
+  record "$pid"
+else
+  # Foreground: record BEFORE the shift, not after, and drop the pid after.
+  #
+  # Recorded after, the only process left to name is this script ($$), and it is exiting
+  # as the entry is written — so statusline.sh reads a "running" station whose pid is gone
+  # and reports ORPHANED for a shift that ran to the end. That is the status display
+  # announcing a crash that never happened, which is the failure this whole model exists
+  # to catch, pointing the other way. Recorded first, the pid is this script, and it is
+  # alive for exactly as long as the shift is. It also closes the window where a
+  # foreground shift is running and the ledger still says the station is idle.
+  #
+  # The entry keeps saying "running" once the shift returns, because it is still open:
+  # accept.sh is what closes it out. Only the pid goes, since there is no longer a process
+  # for the status display to check. Background mode is unchanged — there the pid is a
+  # real child, and ORPHANED after it dies is the reminder nobody was watching.
+  pid=$$
+  record "$pid"
+  shift_rc=0
+  launch || shift_rc=$?
+  forget_pid
+  if [ "$shift_rc" -ne 0 ]; then
+    printf 'dispatch: the shift exited %s. Log: %s\n' "$shift_rc" "$log_file" >&2
+    printf 'dispatch: the ledger entry stands — close it out with accept.sh.\n' >&2
+    exit "$shift_rc"
+  fi
+fi
 
 printf 'dispatched  station=%s  order=%s  pid=%s\n' "$STATION" "$ORDER" "$pid"
 printf 'log         %s\n' "$log_file"

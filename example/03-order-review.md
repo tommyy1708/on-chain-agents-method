@@ -3,6 +3,7 @@ status: ACKED
 from: hub
 needs: independent review
 reply: to-hub/2026-01-05-digest-verdict.md
+review: none
 ---
 
 # Review: digest idempotency

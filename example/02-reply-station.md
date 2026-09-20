@@ -38,7 +38,17 @@ Both restored; diff empty afterwards.
 Real transport behaviour under a provider-side timeout. The order put the transport out of
 bounds, so this is untested rather than tested-and-fine.
 
-## 4. Found but not done
+## 4. Guardrail self-check
+
+- **Schedule and retry policy** — untouched. Nothing under the scheduler config is in the
+  diff; `git diff --stat` lists `jobs/weekly_digest.*` and two test files, nothing else.
+- **Mail transport** — untouched, and not imported by anything I added.
+- **Not merged.** `fix/digest-idempotency` is pushed and open at `a1b2c3d`; no merge, no
+  deploy, no force push. Someone else presses that.
+- Both knives were swung on a copy under `/tmp/digest-knife`. The working tree here is
+  clean and HEAD is unchanged.
+
+## 5. Found but not done
 
 There is already a test called `never sends the digest twice` in the legacy suite. **I did
 not touch it** — it was green before my change and green after. I did not check what it

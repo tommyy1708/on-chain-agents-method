@@ -3,6 +3,7 @@ status: NEW
 from: hub
 needs: authorised — execute this shift
 reply: to-hub/2026-01-05-digest-rework.md
+review: to-hub/2026-01-05-digest-verdict.md
 ---
 
 # Rework: the legacy test asserts nothing
@@ -15,6 +16,12 @@ with the reviewer — you are being asked to make the named guarantee true.**
 `never sends the digest twice` must fail when deduplication is removed.
 
 **Done means:** deleting the deduplication turns that test red. Verify it by deleting it.
+
+## Review findings, one by one
+
+The review reply this section answers is the one `review:` in the front matter points to.
+
+- B1 → fix: make `never sends the digest twice` go red when the deduplication is deleted — either give the test a retry, or delete it and let the three new tests own the guarantee.
 
 ## How
 
