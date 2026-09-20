@@ -5,7 +5,7 @@ re: to-review/2026-01-05-digest-review.md
 blockers: B1
 ---
 
-# Verdict: **1 blocker**
+# Verdict: **one blocker**
 
 The new code is correct. **The problem is older than this change, and this change makes it
 load-bearing.**
