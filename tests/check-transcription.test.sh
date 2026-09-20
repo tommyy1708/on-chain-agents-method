@@ -748,6 +748,29 @@ elif ! kill -0 "$bgpid" 2>/dev/null; then
 else ok "T93 background: the ledger names the shift's own live pid (pid $bgpid, $line)"; fi
 touch "$T/go"
 for _ in $(seq 100); do kill -0 "$bgpid" 2>/dev/null || break; sleep 0.05; done
+# --- example/ must pass the gate it documents ---------------------------------
+# example/ is the first thing a new shift copies. When it does not pass our own gate, the
+# copy is refused at dispatch — by us, on their first order, for a shape we shipped as the
+# model answer. These are the four invocations the hub otherwise runs by hand.
+run_check "$ROOT/example/04-reply-review.md" "$ROOT/example/05-order-rework.md"
+expect "T94 example/04-reply-review.md + example/05-order-rework.md pass the gate" 0
+grep -qF 'ok · 1 blockers · 1 fix · 0 not fixing' <<<"$out" \
+  && ok "T94 counts" || bad "T94 counts" "stdout: $out"
+
+review_path_ok "T95 example/05-order-rework.md declares the review it answers" \
+  "$ROOT/example/05-order-rework.md" "to-hub/2026-01-05-digest-verdict.md"
+review_path_ok "T96 example/01-order-station.md: review: none" \
+  "$ROOT/example/01-order-station.md" "none"
+review_path_ok "T97 example/03-order-review.md: review: none" \
+  "$ROOT/example/03-order-review.md" "none"
+
+# The review-reply templates are the skeleton that gets copied, so their blockers: line and
+# their "### Bn · " headings have to be spelled the way the gate reads them.
+order "$T/o98.md" "- B1 → 修:x" "- B2 → 修:y"
+for tpl in review-reply.md review-reply.zh.md; do
+  run_check "$ROOT/templates/$tpl" "$T/o98.md"
+  expect "T98 templates/$tpl passes the review side of the gate" 0
+done
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

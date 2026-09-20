@@ -3,6 +3,7 @@ status: ACKED
 from: hub
 needs: authorised — execute this shift
 reply: to-hub/2026-01-05-digest-idempotency.md
+review: none
 ---
 
 # Make the weekly digest send exactly once
