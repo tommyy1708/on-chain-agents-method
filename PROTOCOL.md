@@ -38,14 +38,19 @@ status: NEW            # NEW / ACKED
 from: hub              # hub / <station>
 needs: <what this message asks of the recipient>
 reply: to-hub/YYYY-MM-DD-<slug>.md
+review: none           # none, or the review reply this order answers
 ---
 ```
+
+**Every order carries a `review:` line.** Either `none`, or the path to the review reply it answers — written relative to `mailbox/`, the same way `reply:` is. `dispatch.sh` reads that line and **refuses to dispatch an order that does not have one**, so the gate never depends on recognising something in the body.
 
 ### State machine
 
 `NEW` → recipient handles it → **appends the outcome to the bottom of the file** → sets `ACKED` → moves it to `archive/`.
 
 **Do not skip the append.** The trace left at archive time is the only thing that can answer "why was this decided this way" three months later.
+
+**Do not archive a file an in-flight order points at.** A rework order names its review reply in `review:`, and that path is read at dispatch. Archive the reply while the shift is still running and the path goes dead — the next rework order cannot be dispatched at all. Archive it once that shift has been closed out.
 
 ### Who may write to whom
 
@@ -63,6 +68,8 @@ Use `templates/work-order.md`. A usable order answers four things:
 2. **How** — the plan: order of operations, which tools, what to do when something fails. **Deciding "how" is the dispatcher's job. Do not outsource it to the person doing the work.**
 3. **What must not be touched** — hard boundaries. Crossing one means redoing the work.
 4. **How it will be proven** — which artifacts must come back.
+
+A rework order answers a fifth: **every number in the review reply's `blockers:` line, accounted for one line at a time** — `- B1 → fix: …` or `- B2 → not fixing: <reason>`. The shape is in `templates/work-order.md`, and `scripts/check-transcription.sh` checks it at dispatch.
 
 > **One lesson:** a boundary written as a test holds better than a boundary written in an order. Orders go stale. Tests do not.
 
@@ -103,6 +110,13 @@ Each start is a **fresh, one-shot process**, running in that station's own direc
    last line of the shift log, so `tail -1 <log>` answers "how did that end?" without reading
    the log at all. **The reply file is still the record.** This line is a doorbell, not a
    deliverable: it is allowed to be lost, the reply is not.
+
+   If `AGENT_CMD` uses `--output-format stream-json`, the last line of the log is a JSON
+   object rather than the sign-off itself; the sign-off is inside its `.result`:
+
+   ```bash
+   tail -1 <log> | jq -r .result | tail -1
+   ```
 
 ---
 

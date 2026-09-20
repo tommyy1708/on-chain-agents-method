@@ -277,6 +277,28 @@ order "$T/o69b.md" "B1 和 B2 的共同根因。" "- B1 → 修:x" "- B2 → 修
 run_check "$T/review12.md" "$T/o69b.md"
 expect "T69b prose mentioning B1 next to a real entry" 0
 
+# the hint names the entry line that was written wrong, not the first line that happens to
+# mention Bn — in the benchmark it pointed at the front matter's "needs:", where nothing
+# was wrong, while the malformed entry sat further down
+{
+  printf -- '---\nstatus: NEW\nfrom: hub\nneeds: 逐条交代 B1 与 B2\nreview: to-hub/x-review.md\n---\n\n# 返工\n\n'
+  printf '%s\n' '- B1 -> 修:空输入返回错误' '- B2 → 修:y'
+} >"$T/o70a.md"
+run_check "$T/review12.md" "$T/o70a.md"
+ln=$(grep -n -- '- B1 -> ' "$T/o70a.md" | cut -d: -f1)
+expect "T70a hint points at the malformed entry line, not the front matter's needs:" 1 \
+  "missing B1 (line $ln mentions B1 but is not in the \"- B1 → 修:…\" format)"
+
+# no line looks like an entry: fall back to the first mention, as before
+{
+  printf -- '---\nstatus: NEW\nfrom: hub\nneeds: 逐条交代 B1 与 B2\nreview: to-hub/x-review.md\n---\n\n# 返工\n\n'
+  printf '%s\n' 'B1 的根因是没有校验输入。' '- B2 → 修:y'
+} >"$T/o70b.md"
+run_check "$T/review12.md" "$T/o70b.md"
+ln=$(grep -n -- 'needs: ' "$T/o70b.md" | cut -d: -f1)
+expect "T70b no entry-like line: hint falls back to the first mention" 1 \
+  "missing B1 (line $ln mentions B1 but is not in the \"- B1 → 修:…\" format)"
+
 # --- rework order entries -----------------------------------------------------
 order "$T/o26.md" "- B1 → 修:" "- B2 → 修:y" "- B3 → 修:z"
 run_check "$T/review3.md" "$T/o26.md"

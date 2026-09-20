@@ -34,10 +34,12 @@ scope: <one line: what was touched, what was not>
 
 <Say what you tried and why you could not get it. **Never present reasoning as measurement.**>
 
-## 4. Found but not done
+## 4. Guardrail self-check
+
+<Answer each prohibition in the order, with the actual end state.>
+
+## 5. Found but not done
 
 <Out of scope, or things you believe should change but should not change yourself. **Do not write "none" here when there is something.**>
 
-## Guardrail self-check
-
-<Answer each prohibition in the order, with the actual end state.>
+**This section comes last, always.**
