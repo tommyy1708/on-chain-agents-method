@@ -33,6 +33,38 @@ Any CLI with that shape works. If yours cannot restrict tools, everything here s
 > permissions are a second line of defence here, not the first. The first is that a shift
 > can only be one order deep, and that a human presses merge.
 
+### What `--tools` does not cover
+
+**`--tools` restricts the built-in tools and nothing else.** Measured on Claude Code 2.1.277:
+a shift launched with `--tools "Read,Grep,Write,Bash"` did end up with only those four
+built-ins — and with **84 MCP tools still present**, among them Google Drive's `share_file`
+and `trash_file`. **Whether those calls would actually go through depends on the user-level
+allow list, and that part was not measured** — measuring it means really touching an outside
+service.
+
+Two more flags close it:
+
+```bash
+claude -p "<prompt>" --tools "Read,Grep,Write,Bash" \
+    --strict-mcp-config \
+    --setting-sources project,local
+```
+
+- **`--strict-mcp-config`** — with no `--mcp-config` next to it, the shift has no MCP servers at all.
+- **`--setting-sources project,local`** — leaves the user-level settings out. Without it a
+  shift inherits the configuration of the whole machine: one smoke-test shift picked up 84
+  extra tools and about **85K tokens of start-up context, taking it from $0.056 to $1.54**.
+
+**Permission rules have a shape, and the wrong shape does nothing (measured).** Allow a path
+as `Edit(<path>/**)` — that covers `Write` too. `Write(<path>)` **has no effect**. And once
+user-level settings are excluded, the coordination directory has to be allowed explicitly,
+`Read(<coordination>/**)`, or the shift cannot read its own order.
+
+**The sandbox blocks the Keychain.** A sandboxed shift cannot start a sub-session at all:
+`claude -p` comes back in about 20ms with `Not logged in`, and allowing network access does
+not change it. So **whatever dispatches shifts must not itself be sandboxed** — the sandbox
+is for stations.
+
 ---
 
 ## The layout
@@ -56,6 +88,8 @@ Three rules about that picture, each one learned the hard way:
 3. **The reviewer needs a working copy too.** It has to run checks, and it has to do that **without touching the original** — a scratch copy is how "read-only" stays true while still being able to swing a knife.
 
 **Worktrees or separate clones?** For one repository, start with worktrees: they share a single `.git`, cost almost nothing, and branches are visible across stations. Use separate clones when the stations are separate repositories anyway, or when you want the isolation to be physical.
+
+**One exception: give the review station a separate clone, and run it sandboxed.** On a worktree, "zero write access" is discipline, not a physical constraint — the `.git` is shared. Measured: from a worktree, with the Claude Code sandbox on, the reviewer could still run `git -C <the shared repository> branch` and create a branch. It was created; it was then deleted. From a **separate clone inside the sandbox**, the same command was refused by the operating system — `Operation not permitted` — and the coordination directory was not writable either. That is the difference between a rule and a boundary.
 
 ---
 

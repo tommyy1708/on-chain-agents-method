@@ -84,6 +84,25 @@ Merge, deploy, publish. Agents work up to "ready" — **the press is a person's.
 
 > **Why:** this is not distrust. It puts the human at the one point where the information is complete and the cost is highest, instead of asking them to review every change.
 
+### What has actually been measured
+
+One safeguard in this repository has been through an evaluation, and it did not survive it.
+
+**The transcription check** — `scripts/check-transcription.sh`, which refuses to dispatch a
+rework order that has dropped a blocker. Evaluated at 3 arms × 2 states × 5 rounds on
+`claude-opus-5`. **All three arms dropped nothing at all, so no difference could be measured.**
+Cost moved by a median of +0% / −6%. Across the 10 rounds with the check on, it wrongly
+blocked once, over formatting.
+
+So it is **a safeguard whose effect has not been measured.** This repository does not claim
+that it prevents dropped transcriptions, because that has not been shown.
+
+**What that result covers:** four blockers, one of them buried; that one model; a backlog of
+eight items. Whether the check helps under a heavier load is a different question, and
+answering it needs a separate pre-registered evaluation that has not been run.
+
+Method and raw data live in `~/bench/d1` — on the author's machine, not in this repository.
+
 ---
 
 ## How this differs from a conventional harness
