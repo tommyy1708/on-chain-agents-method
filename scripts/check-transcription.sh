@@ -205,9 +205,19 @@ for _, line in order_lines:
             problems.append(f"{b}: empty entry")
 
 def missing(b):
-    """missing Bn — and if a line does mention Bn, which one, so nobody hunts for it."""
+    """missing Bn — and if a line does mention Bn, which one, so nobody hunts for it.
+    What went wrong is almost always an entry line written slightly wrong, so prefer a line
+    that looks like one (starts with "-", or holds a →) over the first mention anywhere:
+    the first mention is often the "needs:" line of the front matter, where nothing is wrong."""
     mention = re.compile(rf"(?<![0-9A-Za-z]){b}(?![0-9A-Za-z])")
-    n = next((n for n, line in order_lines if mention.search(line)), None)
+    mentions, entryish = [], []
+    for n, line in order_lines:
+        if not mention.search(line):
+            continue
+        mentions.append(n)
+        if line.lstrip().startswith("-") or "→" in line:
+            entryish.append(n)
+    n = next(iter(entryish + mentions), None)
     if n is None:
         return f"missing {b}"
     return f'missing {b} (line {n} mentions {b} but is not in the "- {b} → 修:…" format)'
