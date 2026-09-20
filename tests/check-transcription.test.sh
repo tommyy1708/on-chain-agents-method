@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# check-transcription.test.sh — tests for scripts/check-transcription.sh and for the
-# "review:" gate in scripts/dispatch.sh.
+# check-transcription.test.sh — tests for scripts/check-transcription.sh, for the
+# "review:" gate in scripts/dispatch.sh, and for the ledger dispatch.sh writes.
 #
 #   ./tests/check-transcription.test.sh
 #
@@ -651,6 +651,103 @@ setup_dispatch
 cp "$T/review-d1.md" "$T/d/mailbox/to-hub/2026-09-19-d1-check-script-review.md"
 run_dispatch "$ROOT/tests/fixtures/order-2026-09-19-d1-rework-1.md"
 dispatched "T89 dispatch: real regression, review: in the order's front matter"
+
+# --- the ledger of a foreground shift -----------------------------------------
+# ORPHANED is statusline.sh saying "the ledger says running and the process is gone" —
+# i.e. a shift died. A --fg shift that ran to the end must never produce it: that is the
+# status display lying about a crash that did not happen, which is this repo's own
+# failure mode pointing the other way.
+#
+# The fake agent does three things a real shift cannot be asked to do: report what the
+# ledger said WHILE it was running, block until released, and exit with a chosen status.
+cat >"$T/agent.sh" <<'EOF'
+#!/usr/bin/env bash
+[ -z "${FAKE_SNAP:-}" ] || python3 - "$FAKE_LEDGER" "$FAKE_SNAP" <<'PY'
+import json, os, sys
+a = json.load(open(sys.argv[1])).get("agents", {}).get("station-b", {})
+pid = a.get("pid")
+alive = False
+if isinstance(pid, int):
+    try:
+        os.kill(pid, 0)
+        alive = True
+    except OSError:
+        alive = False
+open(sys.argv[2], "w").write(f"state={a.get('state')} pid={pid} alive={alive}\n")
+PY
+if [ -n "${FAKE_GO:-}" ]; then
+  while [ ! -f "$FAKE_GO" ]; do sleep 0.05; done
+fi
+exit "${FAKE_EXIT:-0}"
+EOF
+chmod +x "$T/agent.sh"
+
+run_shift() {  # run_shift <dispatch args…> — order o84.md, FAKE_* from the caller
+  rc=0
+  ( cd "$T/d" && AGENT_CMD="$T/agent.sh" STATIONS_DIR="$T/d/stations" \
+      LEDGER="$T/d/ledger.json" MAILBOX="$T/d/mailbox" LOGS="$T/d/logs" \
+      FAKE_LEDGER="$T/d/ledger.json" "$DISPATCH" station-b "$T/o84.md" "$@" ) \
+    >"$T/out" 2>"$T/err" || rc=$?
+  out="$(cat "$T/out")"; err="$(cat "$T/err")"
+}
+statusline() { "$ROOT/scripts/statusline.sh" "$T/d/ledger.json" "$T/d/mailbox/to-hub"; }
+station_pid() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["agents"]["station-b"].get("pid",""))' \
+    "$T/d/ledger.json"
+}
+
+# the shift cannot be recorded after it ends: by then the only pid left to name is the
+# dispatcher's own, and it is on its way out
+setup_dispatch
+rm -f "$T/snap"
+FAKE_SNAP="$T/snap" run_shift --fg
+snap="$(cat "$T/snap" 2>/dev/null || echo '<nothing: the ledger was not written before the shift>')"
+if [ "$rc" -ne 0 ]; then bad "T90 --fg: mid-shift the ledger says running, pid alive" "exit $rc · $err"
+elif ! grep -qE '^state=running pid=[0-9]+ alive=True$' <<<"$snap"; then
+  bad "T90 --fg: mid-shift the ledger says running, pid alive" "read from inside the shift: $snap"
+else ok "T90 --fg: mid-shift the ledger says running, pid alive ($snap)"; fi
+
+setup_dispatch
+run_shift --fg
+line="$(statusline)"
+if [ "$rc" -ne 0 ]; then bad "T91 --fg: a finished shift is not ORPHANED" "exit $rc · $err"
+elif grep -qF 'station-b:ORPHANED' <<<"$line"; then
+  bad "T91 --fg: a finished shift is not ORPHANED" "statusline: $line"
+elif ! grep -qF 'station-b' <<<"$line"; then
+  bad "T91 --fg: a finished shift is not ORPHANED" "the shift vanished from the status display: $line"
+elif [ "$(station_state)" != "running" ]; then
+  bad "T91 --fg: a finished shift is not ORPHANED" \
+      "state is $(station_state), so accept.sh has nothing to close out"
+else ok "T91 --fg: a finished shift is not ORPHANED ($line)"; fi
+
+# a shift that ran and exited 3 is not an orphan either — it is an entry the hub has to
+# close out. The status still has to reach the caller.
+setup_dispatch
+FAKE_EXIT=3 run_shift --fg
+line="$(statusline)"
+if [ "$rc" -ne 3 ]; then bad "T92 --fg: a failed shift is not ORPHANED, its status survives" "exit $rc, wanted 3 · $err"
+elif grep -qF 'station-b:ORPHANED' <<<"$line"; then
+  bad "T92 --fg: a failed shift is not ORPHANED, its status survives" "statusline: $line"
+elif [ "$(station_state)" != "running" ]; then
+  bad "T92 --fg: a failed shift is not ORPHANED, its status survives" \
+      "state is $(station_state): the failed shift left nothing to close out"
+else ok "T92 --fg: a failed shift is not ORPHANED, its status survives ($line)"; fi
+
+# background is untouched: the pid in the ledger is the shift's own child, and it is
+# alive while the shift runs — which is what makes ORPHANED mean something in the mode
+# nobody is watching
+setup_dispatch
+rm -f "$T/go"
+FAKE_GO="$T/go" run_shift
+line="$(statusline)"; bgpid="$(station_pid)"
+if [ "$rc" -ne 0 ]; then bad "T93 background: the ledger names the shift's own live pid" "exit $rc · $err"
+elif grep -qF 'station-b:ORPHANED' <<<"$line"; then
+  bad "T93 background: the ledger names the shift's own live pid" "flagged a running shift: $line"
+elif ! kill -0 "$bgpid" 2>/dev/null; then
+  bad "T93 background: the ledger names the shift's own live pid" "pid $bgpid is not alive mid-shift"
+else ok "T93 background: the ledger names the shift's own live pid (pid $bgpid, $line)"; fi
+touch "$T/go"
+for _ in $(seq 100); do kill -0 "$bgpid" 2>/dev/null || break; sleep 0.05; done
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"
